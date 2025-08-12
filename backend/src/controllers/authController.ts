@@ -23,6 +23,16 @@ export const loginValidation = [
   body('password').exists()
 ];
 
+export const verifyEmailValidation = [
+  body('email').isEmail().normalizeEmail(),
+  body('code').isLength({ min: 6, max: 6 }).isNumeric()
+];
+
+export const resetPasswordValidation = [
+  body('token').exists().isString(),
+  body('password').isLength({ min: 8 }).matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+];
+
 export class AuthController {
   static async register(req: Request, res: Response) {
     try {
@@ -63,6 +73,11 @@ export class AuthController {
 
   static async verifyEmail(req: Request, res: Response) {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
       const { email, code } = req.body;
       const result = await AuthService.verifyEmail(email, code);
       
@@ -74,6 +89,11 @@ export class AuthController {
 
   static async resendVerificationCode(req: Request, res: Response) {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
       const { email } = req.body;
       const result = await AuthService.resendVerificationCode(email);
       
@@ -85,6 +105,11 @@ export class AuthController {
 
   static async forgotPassword(req: Request, res: Response) {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
       const { email } = req.body;
       const result = await AuthService.forgotPassword(email);
       
@@ -96,6 +121,11 @@ export class AuthController {
 
   static async resetPassword(req: Request, res: Response) {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
       const { token, password } = req.body;
       const result = await AuthService.resetPassword(token, password);
       

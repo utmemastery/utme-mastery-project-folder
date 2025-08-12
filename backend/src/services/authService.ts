@@ -1,11 +1,16 @@
 import bcrypt from 'bcryptjs';
-import jwt, { SignOptions } from 'jsonwebtoken';
-
+import jwt, { SignOptions, JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
-import { sendVerificationEmail } from '../utils/emailService';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/emailService';
 import { generateVerificationCode } from '../utils/helpers';
 
 const prisma = new PrismaClient();
+
+interface JwtPayload {
+  id: number;
+  email: string;
+  role: string;
+}
 
 // Define valid time units for JWT expiresIn
 type JwtTimeUnit = 's' | 'm' | 'h' | 'd' | 'w' | 'y';
@@ -130,13 +135,12 @@ export class AuthService {
     const JWT_EXPIRE = parseExpire(JWT_EXPIRE_ENV);
 
     const signOptions: SignOptions = {
-      // @ts-ignore
       expiresIn: JWT_EXPIRE,
     };
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET!,
+      JWT_SECRET,
       signOptions
     );
 
@@ -230,8 +234,8 @@ export class AuthService {
       data: { resetToken, resetTokenExpiry }
     });
 
-    // TODO: send reset email logic here
-    // await sendPasswordResetEmail(email, resetToken);
+    // Send reset email
+    await sendPasswordResetEmail(email, resetToken);
 
     return { message: 'Password reset email sent' };
   }
@@ -243,7 +247,7 @@ export class AuthService {
         throw new Error('JWT_SECRET environment variable is not defined');
       }
 
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
 
       const user = await prisma.user.findUnique({ where: { id: decoded.id } });
 
@@ -268,7 +272,12 @@ export class AuthService {
       });
 
       return { message: 'Password reset successfully' };
-    } catch {
+    } catch (error) {
+      if (error instanceof TokenExpiredError) {
+        throw new Error('Reset token has expired');
+      } else if (error instanceof JsonWebTokenError) {
+        throw new Error('Invalid reset token');
+      }
       throw new Error('Invalid or expired reset token');
     }
   }
