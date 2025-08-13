@@ -1,20 +1,20 @@
-// mobile/src/screens/auth/LoginScreen.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { StackScreenProps } from '@react-navigation/stack';
+import { AuthStackParamList } from '../../navigation/types';
 
-interface LoginScreenProps {
-  navigation: any;
-}
+type LoginScreenProps = StackScreenProps<AuthStackParamList, 'Login'>;
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const { login, isLoading, error, clearError, isAuthenticated, user } = useAuthStore();
 
@@ -126,8 +126,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 placeholder="Enter your password"
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 error={passwordError}
+                rightIcon={
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <Text style={{ color: '#3B82F6' }}>{showPassword ? 'Hide' : 'Show'}</Text>
+                  </TouchableOpacity>
+                }
               />
 
               {error && (

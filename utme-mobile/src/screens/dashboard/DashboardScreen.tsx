@@ -2,11 +2,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuthStore } from '../stores/authStore';
-import { useAnalyticsStore } from '../stores/analyticsStore';
-import { CircularProgress } from '../components/ui/CircularProgress';
-import { StatCard } from '../components/ui/StatCard';
-import { SubjectCard } from '../components/ui/SubjectCard';
+import { useAuthStore } from '../../stores/authStore';
+import { useAnalyticsStore } from '../../stores/analyticsStore';
+import { CircularProgress } from '../../components/ui/CircularProgress';
+import { StatCard } from '../../components/ui/StatCard';
+import { SubjectCard } from '../../components/ui/SubjectCard';
+import { TaskCard } from '../../components/ui/TaskCard';
+import { ActionButton } from '../../components/ui/ActionButton';
 
 interface DashboardScreenProps {
   navigation: any;

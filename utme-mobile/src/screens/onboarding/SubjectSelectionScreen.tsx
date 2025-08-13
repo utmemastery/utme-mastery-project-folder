@@ -1,12 +1,12 @@
-// mobile/src/screens/onboarding/SubjectSelectionScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../navigation/types';
 
-interface SubjectSelectionScreenProps {
-  navigation: any;
-}
+interface SubjectSelectionScreenProps extends NativeStackScreenProps<RootStackParamList, 'SubjectSelection'> {}
 
 const UTME_SUBJECTS = [
   { id: 'english', name: 'English Language', icon: '📚', required: true },
@@ -49,13 +49,23 @@ export const SubjectSelectionScreen: React.FC<SubjectSelectionScreenProps> = ({ 
     });
   };
 
+  const saveOnboardingProgress = async () => {
+    await AsyncStorage.setItem('onboardingProgress', JSON.stringify({ selectedSubjects }));
+  };
+
   const handleContinue = () => {
     if (selectedSubjects.length < 4) {
       Alert.alert('Incomplete Selection', `Please select ${4 - selectedSubjects.length} more subject(s)`);
       return;
     }
 
+    saveOnboardingProgress();
     navigation.navigate('CourseSelection', { selectedSubjects });
+  };
+
+  const handleBack = () => {
+    saveOnboardingProgress();
+    navigation.goBack();
   };
 
   const groupedSubjects = UTME_SUBJECTS.reduce((acc, subject) => {
@@ -68,7 +78,6 @@ export const SubjectSelectionScreen: React.FC<SubjectSelectionScreenProps> = ({ 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <View style={{ flex: 1, padding: 24 }}>
-        {/* Header */}
         <View style={{ marginBottom: 32 }}>
           <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
             Choose Your Subjects
@@ -90,8 +99,6 @@ export const SubjectSelectionScreen: React.FC<SubjectSelectionScreenProps> = ({ 
             </Text>
           </View>
         </View>
-
-        {/* Subject Grid */}
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
           {Object.entries(groupedSubjects).map(([category, subjects]) => (
             <View key={category} style={{ marginBottom: 24 }}>
@@ -103,16 +110,10 @@ export const SubjectSelectionScreen: React.FC<SubjectSelectionScreenProps> = ({ 
               }}>
                 {category}
               </Text>
-              
-              <View style={{ 
-                flexDirection: 'row', 
-                flexWrap: 'wrap', 
-                gap: 12 
-              }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginRight: 12, marginBottom: 12 }}>
                 {subjects.map((subject) => {
                   const isSelected = selectedSubjects.includes(subject.id);
                   const isRequired = subject.required;
-                  
                   return (
                     <TouchableOpacity
                       key={subject.id}
@@ -125,7 +126,9 @@ export const SubjectSelectionScreen: React.FC<SubjectSelectionScreenProps> = ({ 
                         borderRadius: 12,
                         padding: 16,
                         alignItems: 'center',
-                        opacity: isRequired ? 0.7 : 1
+                        opacity: isRequired ? 0.7 : 1,
+                        marginRight: 12,
+                        marginBottom: 12
                       }}
                       disabled={isRequired}
                     >
@@ -156,14 +159,19 @@ export const SubjectSelectionScreen: React.FC<SubjectSelectionScreenProps> = ({ 
             </View>
           ))}
         </ScrollView>
-
-        {/* Continue Button */}
-        <View style={{ paddingTop: 16 }}>
+        <View style={{ flexDirection: 'row', marginRight: 12, marginBottom: 12, paddingTop: 16 }}>
+          <Button
+            title="Back"
+            onPress={handleBack}
+            variant="outline"
+            style={{ flex: 1, marginRight: 12 }}
+          />
           <Button
             title="Continue"
             onPress={handleContinue}
             disabled={selectedSubjects.length < 4}
             size="large"
+            style={{ flex: 2 }}
           />
         </View>
       </View>

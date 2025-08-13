@@ -1,29 +1,23 @@
-// mobile/src/screens/onboarding/CourseSelectionScreen.tsx
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../navigation/types';
 
-interface CourseSelectionScreenProps {
-  navigation: any;
-  route: {
-    params: {
-      selectedSubjects: string[];
-    };
-  };
-}
+interface CourseSelectionScreenProps extends NativeStackScreenProps<RootStackParamList, 'CourseSelection'> {}
 
 const POPULAR_COURSES = [
-  { id: 'medicine', name: 'Medicine & Surgery', icon: '🩺', cutoff: 320 },
-  { id: 'engineering', name: 'Engineering', icon: '⚙️', cutoff: 280 },
-  { id: 'law', name: 'Law', icon: '⚖️', cutoff: 280 },
-  { id: 'pharmacy', name: 'Pharmacy', icon: '💊', cutoff: 300 },
-  { id: 'computer_science', name: 'Computer Science', icon: '💻', cutoff: 270 },
-  { id: 'accounting', name: 'Accounting', icon: '📊', cutoff: 250 },
-  { id: 'business_admin', name: 'Business Administration', icon: '💼', cutoff: 240 },
-  { id: 'economics', name: 'Economics', icon: '📈', cutoff: 260 },
-  { id: 'psychology', name: 'Psychology', icon: '🧠', cutoff: 270 },
-  { id: 'mass_comm', name: 'Mass Communication', icon: '📺', cutoff: 250 },
+  { id: 'medicine', name: 'Medicine & Surgery', icon: '🩺', cutoff: 320, requiredSubjects: ['english', 'mathematics', 'physics', 'chemistry', 'biology'] },
+  { id: 'engineering', name: 'Engineering', icon: '⚙️', cutoff: 280, requiredSubjects: ['english', 'mathematics', 'physics', 'chemistry'] },
+  { id: 'law', name: 'Law', icon: '⚖️', cutoff: 280, requiredSubjects: ['english', 'mathematics', 'literature', 'government'] },
+  { id: 'pharmacy', name: 'Pharmacy', icon: '💊', cutoff: 300, requiredSubjects: ['english', 'mathematics', 'physics', 'chemistry', 'biology'] },
+  { id: 'computer_science', name: 'Computer Science', icon: '💻', cutoff: 270, requiredSubjects: ['english', 'mathematics', 'physics', 'chemistry'] },
+  { id: 'accounting', name: 'Accounting', icon: '📊', cutoff: 250, requiredSubjects: ['english', 'mathematics', 'economics', 'government'] },
+  { id: 'business_admin', name: 'Business Administration', icon: '💼', cutoff: 240, requiredSubjects: ['english', 'mathematics', 'economics', 'government'] },
+  { id: 'economics', name: 'Economics', icon: '📈', cutoff: 260, requiredSubjects: ['english', 'mathematics', 'economics', 'government'] },
+  { id: 'psychology', name: 'Psychology', icon: '🧠', cutoff: 270, requiredSubjects: ['english', 'mathematics', 'biology', 'government'] },
+  { id: 'mass_comm', name: 'Mass Communication', icon: '📺', cutoff: 250, requiredSubjects: ['english', 'mathematics', 'literature', 'government'] },
 ];
 
 export const CourseSelectionScreen: React.FC<CourseSelectionScreenProps> = ({ 
@@ -47,15 +41,28 @@ export const CourseSelectionScreen: React.FC<CourseSelectionScreenProps> = ({
   };
 
   const handleContinue = () => {
-    const aspiringCourse = selectedCourse === 'custom' ? customCourse : 
-      POPULAR_COURSES.find(c => c.id === selectedCourse)?.name || '';
+    const aspiringCourseObj = POPULAR_COURSES.find(c => c.id === selectedCourse);
+    const aspiringCourse = selectedCourse === 'custom' ? customCourse : aspiringCourseObj?.name || '';
     
     if (!aspiringCourse) {
+      Alert.alert('Error', 'Please select a course or enter a custom course.');
       return;
     }
 
-    const suggestedScore = selectedCourse === 'custom' ? 300 :
-      POPULAR_COURSES.find(c => c.id === selectedCourse)?.cutoff || 300;
+    if (aspiringCourseObj?.requiredSubjects) {
+      const missingSubjects = aspiringCourseObj.requiredSubjects.filter(
+        subject => !selectedSubjects.includes(subject)
+      );
+      if (missingSubjects.length > 0) {
+        Alert.alert(
+          'Invalid Subjects',
+          `You must select ${missingSubjects.join(', ')} for ${aspiringCourseObj.name}`
+        );
+        return;
+      }
+    }
+
+    const suggestedScore = selectedCourse === 'custom' ? 300 : aspiringCourseObj?.cutoff || 300;
 
     navigation.navigate('GoalSetting', { 
       selectedSubjects, 
@@ -64,10 +71,11 @@ export const CourseSelectionScreen: React.FC<CourseSelectionScreenProps> = ({
     });
   };
 
+  const aspiringCourseObj = POPULAR_COURSES.find(c => c.id === selectedCourse);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <View style={{ flex: 1, padding: 24 }}>
-        {/* Header */}
         <View style={{ marginBottom: 32 }}>
           <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
             What's Your Dream Course?
@@ -75,14 +83,16 @@ export const CourseSelectionScreen: React.FC<CourseSelectionScreenProps> = ({
           <Text style={{ fontSize: 16, color: '#6B7280', lineHeight: 24 }}>
             This helps us understand your target score and create the perfect study plan for you.
           </Text>
+          {selectedCourse && aspiringCourseObj?.requiredSubjects && (
+            <Text style={{ fontSize: 14, color: '#6B7280', marginTop: 8 }}>
+              Required subjects: {aspiringCourseObj.requiredSubjects.join(', ')}
+            </Text>
+          )}
         </View>
-
-        {/* Course Grid */}
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginRight: 12, marginBottom: 12 }}>
             {POPULAR_COURSES.map((course) => {
               const isSelected = selectedCourse === course.id;
-              
               return (
                 <TouchableOpacity
                   key={course.id}
@@ -94,7 +104,9 @@ export const CourseSelectionScreen: React.FC<CourseSelectionScreenProps> = ({
                     borderColor: isSelected ? '#3B82F6' : '#E5E7EB',
                     borderRadius: 12,
                     padding: 16,
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    marginRight: 12,
+                    marginBottom: 12
                   }}
                 >
                   <Text style={{ fontSize: 32, marginBottom: 8 }}>
@@ -119,8 +131,6 @@ export const CourseSelectionScreen: React.FC<CourseSelectionScreenProps> = ({
                 </TouchableOpacity>
               );
             })}
-            
-            {/* Custom Course Option */}
             <TouchableOpacity
               onPress={handleCustomCourse}
               style={{
@@ -131,7 +141,9 @@ export const CourseSelectionScreen: React.FC<CourseSelectionScreenProps> = ({
                 borderRadius: 12,
                 padding: 16,
                 alignItems: 'center',
-                borderStyle: 'dashed'
+                borderStyle: 'dashed',
+                marginRight: 12,
+                marginBottom: 12
               }}
             >
               <Text style={{ fontSize: 32, marginBottom: 8 }}>➕</Text>
@@ -145,8 +157,6 @@ export const CourseSelectionScreen: React.FC<CourseSelectionScreenProps> = ({
               </Text>
             </TouchableOpacity>
           </View>
-
-          {/* Custom Course Input */}
           {showCustomInput && (
             <View style={{ marginTop: 24 }}>
               <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
@@ -170,14 +180,12 @@ export const CourseSelectionScreen: React.FC<CourseSelectionScreenProps> = ({
             </View>
           )}
         </ScrollView>
-
-        {/* Navigation */}
-        <View style={{ flexDirection: 'row', gap: 12, paddingTop: 16 }}>
+        <View style={{ flexDirection: 'row', marginRight: 12, marginBottom: 12, paddingTop: 16 }}>
           <Button
             title="Back"
             onPress={() => navigation.goBack()}
             variant="outline"
-            style={{ flex: 1 }}
+            style={{ flex: 1, marginRight: 12 }}
           />
           <Button
             title="Continue"

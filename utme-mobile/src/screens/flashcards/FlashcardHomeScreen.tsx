@@ -1,6 +1,6 @@
 // mobile/src/screens/flashcards/FlashcardHomeScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFlashcardStore } from '../../stores/flashcardStore';
 import { Button } from '../../components/ui/Button';
@@ -246,3 +246,33 @@ const formatRelativeTime = (date: string | Date) => {
   if (diffInDays < 7) return `${diffInDays}d ago`;
   return `${Math.floor(diffInDays / 7)}w ago`;
 };
+
+// Review Stat Card Component
+interface ReviewStatCardProps {
+  title: string;
+  value: string;
+  color: string;
+  icon: string;
+}
+
+const ReviewStatCard: React.FC<ReviewStatCardProps> = ({ title, value, color, icon }) => (
+  <View style={{ flex: 1, minWidth: '45%', alignItems: 'center' }}>
+    <View style={{
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: `${color}20`,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 8
+    }}>
+      <Text style={{ fontSize: 20 }}>{icon}</Text>
+    </View>
+    <Text style={{ fontSize: 20, fontWeight: 'bold', color, marginBottom: 2 }}>
+      {value}
+    </Text>
+    <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
+      {title}
+    </Text>
+  </View>
+);

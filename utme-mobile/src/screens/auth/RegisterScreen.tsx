@@ -1,14 +1,13 @@
-// mobile/src/screens/auth/RegisterScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { StackScreenProps } from '@react-navigation/stack';
+import { AuthStackParamList } from '../../navigation/types';
 
-interface RegisterScreenProps {
-  navigation: any;
-}
+type RegisterScreenProps = StackScreenProps<AuthStackParamList, 'Register'>;
 
 export const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [formData, setFormData] = useState({
@@ -20,12 +19,12 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) =>
     confirmPassword: ''
   });
   const [errors, setErrors] = useState<any>({});
+  const [showPassword, setShowPassword] = useState(false);
 
   const { register, isLoading, error, clearError } = useAuthStore();
 
   const updateFormData = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors((prev: any) => ({ ...prev, [field]: '' }));
     }
@@ -37,6 +36,11 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) =>
     // First name validation
     if (!formData.firstName.trim()) {
       newErrors.firstName = 'First name is required';
+    }
+
+    // Last name validation
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
     }
 
     // Email validation
@@ -169,8 +173,13 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) =>
                 placeholder="Create a strong password"
                 value={formData.password}
                 onChangeText={(text) => updateFormData('password', text)}
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 error={errors.password}
+                rightIcon={
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <Text style={{ color: '#3B82F6' }}>{showPassword ? 'Hide' : 'Show'}</Text>
+                  </TouchableOpacity>
+                }
               />
 
               <Input
@@ -178,8 +187,13 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) =>
                 placeholder="Re-enter your password"
                 value={formData.confirmPassword}
                 onChangeText={(text) => updateFormData('confirmPassword', text)}
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 error={errors.confirmPassword}
+                rightIcon={
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <Text style={{ color: '#3B82F6' }}>{showPassword ? 'Hide' : 'Show'}</Text>
+                  </TouchableOpacity>
+                }
               />
 
               {error && (

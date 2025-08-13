@@ -1,6 +1,14 @@
-// mobile/src/components/ui/Input.tsx (Enhanced version)
+// mobile/src/components/ui/Input.tsx
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ViewStyle,
+  TextStyle,
+  StyleProp,
+} from 'react-native';
 
 interface InputProps {
   label?: string;
@@ -14,11 +22,11 @@ interface InputProps {
   disabled?: boolean;
   multiline?: boolean;
   numberOfLines?: number;
-  leftIcon?: string;
-  rightIcon?: string;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
   onRightIconPress?: () => void;
-  style?: ViewStyle;
-  inputStyle?: TextStyle;
+  style?: StyleProp<ViewStyle>;
+  inputStyle?: StyleProp<TextStyle>;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -37,40 +45,40 @@ export const Input: React.FC<InputProps> = ({
   rightIcon,
   onRightIconPress,
   style,
-  inputStyle
+  inputStyle,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
 
   return (
     <View style={[{ marginBottom: 16 }, style]}>
       {label && (
-        <Text style={{
-          fontSize: 14,
-          fontWeight: '500',
-          color: '#374151',
-          marginBottom: 8
-        }}>
+        <Text
+          style={{
+            fontSize: 14,
+            fontWeight: '500',
+            color: '#374151',
+            marginBottom: 8,
+          }}
+        >
           {label}
         </Text>
       )}
-      
-      <View style={{
-        flexDirection: 'row',
-        alignItems: multiline ? 'flex-start' : 'center',
-        backgroundColor: disabled ? '#F3F4F6' : 'white',
-        borderWidth: 1,
-        borderColor: error ? '#EF4444' : isFocused ? '#3B82F6' : '#D1D5DB',
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: multiline ? 12 : 0,
-        minHeight: multiline ? numberOfLines * 20 + 24 : 48
-      }}>
-        {leftIcon && (
-          <Text style={{ fontSize: 16, marginRight: 8, color: '#6B7280' }}>
-            {leftIcon}
-          </Text>
-        )}
-        
+
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: multiline ? 'flex-start' : 'center',
+          backgroundColor: disabled ? '#F3F4F6' : 'white',
+          borderWidth: 1,
+          borderColor: error ? '#EF4444' : isFocused ? '#3B82F6' : '#D1D5DB',
+          borderRadius: 8,
+          paddingHorizontal: 12,
+          paddingVertical: multiline ? 12 : 0,
+          minHeight: multiline ? numberOfLines * 20 + 24 : 48,
+        }}
+      >
+        {leftIcon && <View style={{ marginRight: 8 }}>{leftIcon}</View>}
+
         <TextInput
           value={value}
           onChangeText={onChangeText}
@@ -84,32 +92,36 @@ export const Input: React.FC<InputProps> = ({
           numberOfLines={numberOfLines}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          style={[{
-            flex: 1,
-            fontSize: 16,
-            color: '#1F2937',
-            paddingVertical: multiline ? 0 : 12
-          }, inputStyle]}
+          style={[
+            {
+              flex: 1,
+              fontSize: 16,
+              color: '#1F2937',
+              paddingVertical: multiline ? 0 : 12,
+            },
+            inputStyle,
+          ]}
         />
-        
+
         {rightIcon && (
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={onRightIconPress}
             style={{ marginLeft: 8 }}
+            disabled={!onRightIconPress}
           >
-            <Text style={{ fontSize: 16, color: '#6B7280' }}>
-              {rightIcon}
-            </Text>
+            {rightIcon}
           </TouchableOpacity>
         )}
       </View>
-      
+
       {error && (
-        <Text style={{
-          fontSize: 12,
-          color: '#EF4444',
-          marginTop: 4
-        }}>
+        <Text
+          style={{
+            fontSize: 12,
+            color: '#EF4444',
+            marginTop: 4,
+          }}
+        >
           {error}
         </Text>
       )}

@@ -1,6 +1,6 @@
 // mobile/src/screens/flashcards/FlashcardReviewScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Animated, PanGestureHandler, State } from 'react-native';
+import { View, Text, TouchableOpacity, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFlashcardStore } from '../../stores/flashcardStore';
 
@@ -306,32 +306,3 @@ const ResponseButton: React.FC<ResponseButtonProps> = ({ title, subtitle, color,
   </TouchableOpacity>
 );
 
-// Review Stat Card Component
-interface ReviewStatCardProps {
-  title: string;
-  value: string;
-  color: string;
-  icon: string;
-}
-
-const ReviewStatCard: React.FC<ReviewStatCardProps> = ({ title, value, color, icon }) => (
-  <View style={{ flex: 1, minWidth: '45%', alignItems: 'center' }}>
-    <View style={{
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: `${color}20`,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 8
-    }}>
-      <Text style={{ fontSize: 20 }}>{icon}</Text>
-    </View>
-    <Text style={{ fontSize: 20, fontWeight: 'bold', color, marginBottom: 2 }}>
-      {value}
-    </Text>
-    <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
-      {title}
-    </Text>
-  </View>
-);

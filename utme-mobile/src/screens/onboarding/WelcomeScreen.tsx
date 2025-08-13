@@ -1,18 +1,16 @@
-// mobile/src/screens/onboarding/WelcomeScreen.tsx
 import React from 'react';
-import { View, Text, Image } from 'react-native';
+import { View, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../navigation/types';
 
-interface WelcomeScreenProps {
-  navigation: any;
-}
+interface WelcomeScreenProps extends NativeStackScreenProps<RootStackParamList, 'Welcome'> {}
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <View style={{ flex: 1, padding: 24 }}>
-        {/* Hero Section */}
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <View style={{
             width: 120,
@@ -25,7 +23,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
           }}>
             <Text style={{ fontSize: 48, color: 'white' }}>🎯</Text>
           </View>
-          
           <Text style={{ 
             fontSize: 32, 
             fontWeight: 'bold', 
@@ -35,7 +32,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
           }}>
             Welcome to{'\n'}UTME Mastery
           </Text>
-          
           <Text style={{ 
             fontSize: 18, 
             color: '#6B7280', 
@@ -46,8 +42,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
           }}>
             Your AI-powered companion for achieving{'\n'}99th percentile UTME scores
           </Text>
-
-          {/* Feature Highlights */}
           <View style={{ width: '100%', marginBottom: 48 }}>
             {[
               { icon: '🧠', title: 'AI-Powered Learning', desc: 'Personalized study plans' },
@@ -73,8 +67,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
             ))}
           </View>
         </View>
-
-        {/* CTA */}
         <View style={{ paddingBottom: 32 }}>
           <Button
             title="Let's Get Started"
@@ -82,7 +74,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
             size="large"
             style={{ marginBottom: 16 }}
           />
-          
           <Text style={{ 
             textAlign: 'center', 
             fontSize: 14, 

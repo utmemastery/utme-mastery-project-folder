@@ -1,24 +1,36 @@
-// mobile/src/screens/onboarding/DiagnosticAssessmentScreen.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { useAuthStore } from '../../stores/authStore';
+import api from '../../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../navigation/types';
 
-interface DiagnosticAssessmentScreenProps {
-  navigation: any;
-  route: {
-    params: {
-      selectedSubjects: string[];
-      aspiringCourse: string;
-      goalScore: number;
-      learningStyle: string;
-    };
-  };
+// 🔹 Define the shape of a question
+interface DiagnosticQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: number; // index in `options`
+  difficulty: string;
 }
 
-// Mock diagnostic questions - in real app, these would come from API
-const DIAGNOSTIC_QUESTIONS = {
+// 🔹 Shape of answers stored for each subject
+interface QuestionAnswer {
+  questionId: number;
+  selectedAnswer: number;
+  isCorrect: boolean;
+  timeSpent: number; // seconds
+}
+
+// 🔹 Props for this screen
+interface DiagnosticAssessmentScreenProps
+  extends NativeStackScreenProps<RootStackParamList, 'DiagnosticAssessment'> {}
+
+// 🔹 Mock questions
+const DIAGNOSTIC_QUESTIONS: Record<string, DiagnosticQuestion[]> = {
   english: [
     {
       id: 1,
@@ -27,7 +39,6 @@ const DIAGNOSTIC_QUESTIONS = {
       correctAnswer: 1,
       difficulty: 'easy'
     },
-    // Add more questions...
   ],
   mathematics: [
     {
@@ -37,41 +48,105 @@ const DIAGNOSTIC_QUESTIONS = {
       correctAnswer: 0,
       difficulty: 'medium'
     },
-    // Add more questions...
-  ]
+  ],
+  physics: [{ id: 3, question: "Placeholder physics question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  chemistry: [{ id: 4, question: "Placeholder chemistry question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  biology: [{ id: 5, question: "Placeholder biology question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  geography: [{ id: 6, question: "Placeholder geography question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  economics: [{ id: 7, question: "Placeholder economics question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  government: [{ id: 8, question: "Placeholder government question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  literature: [{ id: 9, question: "Placeholder literature question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  history: [{ id: 10, question: "Placeholder history question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  crs: [{ id: 11, question: "Placeholder CRS question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  irs: [{ id: 12, question: "Placeholder IRS question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  yoruba: [{ id: 13, question: "Placeholder Yoruba question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  hausa: [{ id: 14, question: "Placeholder Hausa question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
+  igbo: [{ id: 15, question: "Placeholder Igbo question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
 };
 
-export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProps> = ({ 
-  navigation, 
-  route 
+export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProps> = ({
+  navigation,
+  route
 }) => {
   const { selectedSubjects, aspiringCourse, goalScore, learningStyle } = route.params;
   const { updateProfile, isLoading } = useAuthStore();
-  
+
   const [currentSubjectIndex, setCurrentSubjectIndex] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [answers, setAnswers] = useState<Record<string, any[]>>({});
+  const [answers, setAnswers] = useState<Record<string, QuestionAnswer[]>>({});
   const [isCompleted, setIsCompleted] = useState(false);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+  const [subjectQuestions, setSubjectQuestions] = useState<DiagnosticQuestion[]>([]);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
 
   const currentSubject = selectedSubjects[currentSubjectIndex];
-  const subjectQuestions = DIAGNOSTIC_QUESTIONS[currentSubject as keyof typeof DIAGNOSTIC_QUESTIONS] || [];
   const currentQuestion = subjectQuestions[currentQuestionIndex];
 
   const totalQuestions = selectedSubjects.reduce((total, subject) => {
-    return total + (DIAGNOSTIC_QUESTIONS[subject as keyof typeof DIAGNOSTIC_QUESTIONS]?.length || 0);
+    return total + (DIAGNOSTIC_QUESTIONS[subject]?.length || 0);
   }, 0);
-
   const completedQuestions = Object.values(answers).flat().length;
 
+  // Initialize answers object
   useEffect(() => {
-    // Initialize answers object
-    const initialAnswers: Record<string, any[]> = {};
+    const initialAnswers: Record<string, QuestionAnswer[]> = {};
     selectedSubjects.forEach(subject => {
       initialAnswers[subject] = [];
     });
     setAnswers(initialAnswers);
   }, [selectedSubjects]);
+
+  // Fetch questions for the current subject
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      setIsLoadingQuestions(true);
+      try {
+        const response = await api.get<{ questions: DiagnosticQuestion[] }>(
+          `/questions/diagnostic/${currentSubject}`
+        );
+        const questions = response.data.questions || [];
+        if (questions.length > 0) {
+          setSubjectQuestions(questions);
+          await AsyncStorage.setItem(`questions_${currentSubject}`, JSON.stringify(questions));
+        } else {
+          const cached = await AsyncStorage.getItem(`questions_${currentSubject}`);
+          const fallbackQuestions: DiagnosticQuestion[] = cached
+            ? JSON.parse(cached)
+            : DIAGNOSTIC_QUESTIONS[currentSubject] || [];
+          if (fallbackQuestions.length === 0) {
+            Alert.alert('No Questions Available', `No diagnostic questions for ${currentSubject}. Skipping to next subject.`);
+            handleNextSubject();
+          } else {
+            setSubjectQuestions(fallbackQuestions);
+          }
+        }
+      } catch {
+        const fallbackQuestions = DIAGNOSTIC_QUESTIONS[currentSubject] || [];
+        if (fallbackQuestions.length === 0) {
+          Alert.alert('No Questions Available', `No diagnostic questions for ${currentSubject}. Skipping to next subject.`);
+          handleNextSubject();
+        } else {
+          setSubjectQuestions(fallbackQuestions);
+        }
+      } finally {
+        setIsLoadingQuestions(false);
+      }
+    };
+    fetchQuestions();
+  }, [currentSubject]);
+
+  const handleNextSubject = () => {
+    if (currentSubjectIndex < selectedSubjects.length - 1) {
+      setCurrentSubjectIndex(prev => prev + 1);
+      setCurrentQuestionIndex(0);
+      setSelectedAnswer(null);
+    } else {
+      setIsCompleted(true);
+      handleCompleteAssessment(answers);
+    }
+  };
 
   const handleAnswerSelect = (answerIndex: number) => {
     setSelectedAnswer(answerIndex);
@@ -80,35 +155,36 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
   const handleNextQuestion = () => {
     if (selectedAnswer === null) return;
 
-    // Save answer
     const newAnswers = { ...answers };
     newAnswers[currentSubject].push({
       questionId: currentQuestion.id,
       selectedAnswer,
       isCorrect: selectedAnswer === currentQuestion.correctAnswer,
-      timeSpent: 30 // You can track actual time
+      timeSpent: 30
     });
     setAnswers(newAnswers);
 
-    // Move to next question
     if (currentQuestionIndex < subjectQuestions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-      setSelectedAnswer(null);
-    } else if (currentSubjectIndex < selectedSubjects.length - 1) {
-      // Move to next subject
-      setCurrentSubjectIndex(currentSubjectIndex + 1);
-      setCurrentQuestionIndex(0);
+      setCurrentQuestionIndex(prev => prev + 1);
       setSelectedAnswer(null);
     } else {
-      // Assessment completed
-      setIsCompleted(true);
-      handleCompleteAssessment(newAnswers);
+      handleNextSubject();
     }
   };
 
-  const handleCompleteAssessment = async (finalAnswers: Record<string, any[]>) => {
+  const saveProgress = async (finalAnswers: Record<string, QuestionAnswer[]>) => {
+    await AsyncStorage.setItem('assessmentProgress', JSON.stringify(finalAnswers));
+  };
+
+  const handleCompleteAssessment = async (finalAnswers: Record<string, QuestionAnswer[]>) => {
+    if (retryCount >= maxRetries) {
+      await saveProgress(finalAnswers);
+      Alert.alert('Too Many Attempts', 'Progress saved. Please try again later.');
+      navigation.navigate('Welcome');
+      return;
+    }
+
     try {
-      // Calculate proficiency levels
       const subjectProficiency = selectedSubjects.map(subject => {
         const subjectAnswers = finalAnswers[subject];
         const correct = subjectAnswers.filter(a => a.isCorrect).length;
@@ -119,7 +195,6 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
         };
       });
 
-      // Complete onboarding
       await updateProfile({
         selectedSubjects,
         aspiringCourse,
@@ -129,13 +204,17 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
         onboardingDone: true
       });
 
-      navigation.replace('AssessmentResults', { 
+      navigation.replace('AssessmentResults', {
         subjectProficiency,
         goalScore,
-        aspiringCourse 
+        aspiringCourse
       });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to complete assessment. Please try again.');
+    } catch {
+      setRetryCount(prev => prev + 1);
+      Alert.alert('Error', 'Failed to complete assessment. Please try again.', [
+        { text: 'Retry', onPress: () => handleCompleteAssessment(finalAnswers) },
+        { text: 'Back', onPress: () => navigation.goBack() }
+      ]);
     }
   };
 
@@ -155,11 +234,13 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
     );
   }
 
-  if (!currentQuestion) {
+  if (isLoadingQuestions || !currentQuestion) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <Text style={{ fontSize: 18, color: '#6B7280' }}>Loading questions...</Text>
+          <Text style={{ fontSize: 18, color: '#6B7280' }}>
+            {isLoadingQuestions ? 'Loading questions...' : 'No questions available for this subject.'}
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -168,65 +249,41 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <View style={{ flex: 1 }}>
-        {/* Progress Header */}
         <View style={{ padding: 24, paddingBottom: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-            <Text style={{ fontSize: 14, color: '#6B7280' }}>
-              Diagnostic Assessment
-            </Text>
+            <Text style={{ fontSize: 14, color: '#6B7280' }}>Diagnostic Assessment</Text>
             <Text style={{ fontSize: 14, color: '#6B7280' }}>
               {completedQuestions + 1}/{totalQuestions}
             </Text>
           </View>
-          
-          {/* Progress Bar */}
-          <View style={{ 
-            height: 4, 
-            backgroundColor: '#E5E7EB', 
-            borderRadius: 2, 
-            overflow: 'hidden' 
-          }}>
-            <View style={{ 
-              height: '100%', 
-              backgroundColor: '#3B82F6',
-              width: `${((completedQuestions + 1) / totalQuestions) * 100}%`
-            }} />
+          <View style={{ height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, overflow: 'hidden' }}>
+            <View
+              style={{
+                height: '100%',
+                backgroundColor: '#3B82F6',
+                width: `${((completedQuestions + 1) / totalQuestions) * 100}%`
+              }}
+            />
           </View>
-
-          <Text style={{ 
-            fontSize: 18, 
-            fontWeight: '600', 
-            color: '#1F2937', 
+          <Text style={{
+            fontSize: 18,
+            fontWeight: '600',
+            color: '#1F2937',
             marginTop: 16,
             textTransform: 'capitalize'
           }}>
             {currentSubject.replace('_', ' ')}
           </Text>
         </View>
-
-        {/* Question */}
         <ScrollView style={{ flex: 1, paddingHorizontal: 24 }}>
-          <View style={{ 
-            backgroundColor: '#F9FAFB', 
-            padding: 20, 
-            borderRadius: 12, 
-            marginBottom: 24 
-          }}>
-            <Text style={{ 
-              fontSize: 16, 
-              color: '#1F2937', 
-              lineHeight: 24,
-              fontWeight: '500'
-            }}>
+          <View style={{ backgroundColor: '#F9FAFB', padding: 20, borderRadius: 12, marginBottom: 24 }}>
+            <Text style={{ fontSize: 16, color: '#1F2937', lineHeight: 24, fontWeight: '500' }}>
               {currentQuestion.question}
             </Text>
           </View>
-
-          {/* Options */}
-          <View style={{ gap: 12 }}>
+          <View style={{ marginRight: 12, marginBottom: 12 }}>
             {currentQuestion.options.map((option, index) => {
               const isSelected = selectedAnswer === index;
-              
               return (
                 <TouchableOpacity
                   key={index}
@@ -238,7 +295,8 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
                     borderRadius: 12,
                     padding: 16,
                     flexDirection: 'row',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    marginBottom: 12
                   }}
                 >
                   <View style={{
@@ -258,8 +316,8 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
                       </Text>
                     )}
                   </View>
-                  <Text style={{ 
-                    fontSize: 16, 
+                  <Text style={{
+                    fontSize: 16,
                     color: isSelected ? '#1E40AF' : '#374151',
                     flex: 1
                   }}>
@@ -270,12 +328,10 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
             })}
           </View>
         </ScrollView>
-
-        {/* Next Button */}
         <View style={{ padding: 24 }}>
           <Button
             title={
-              currentSubjectIndex === selectedSubjects.length - 1 && 
+              currentSubjectIndex === selectedSubjects.length - 1 &&
               currentQuestionIndex === subjectQuestions.length - 1
                 ? "Complete Assessment"
                 : "Next Question"

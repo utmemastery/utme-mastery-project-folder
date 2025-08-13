@@ -1,357 +1,471 @@
-// mobile/src/screens/practice/PracticeSessionScreen.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { usePracticeStore } from '../../stores/practiceStore';
-import { Button } from '../../components/ui/Button';
+import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../services/api';
 
-interface PracticeSessionScreenProps {
-  navigation: any;
+interface Question {
+  id: number;
+  subject: string;
+  topic: string;
+  question: string;
+  options: string[];
+  explanation: string;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  cognitiveLevel: 'RECALL' | 'COMPREHENSION' | 'APPLICATION' | 'ANALYSIS' | 'SYNTHESIS' | 'EVALUATION';
+  yearAsked?: number;
+  tags?: string[];
 }
 
-export const PracticeSessionScreen: React.FC<PracticeSessionScreenProps> = ({ navigation }) => {
-  const { 
-    currentSession, 
-    currentQuestionIndex, 
-    submitAnswer, 
-    endSession, 
-    getNextQuestion 
-  } = usePracticeStore();
+interface QuestionAttempt {
+  questionId: number;
+  selectedAnswer: number;
+  isCorrect: boolean;
+  timeSpent: number;
+  confidenceLevel?: number;
+  timestamp: Date;
+}
 
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [showExplanation, setShowExplanation] = useState(false);
-  const [timeSpent, setTimeSpent] = useState(0);
-  const [confidenceLevel, setConfidenceLevel] = useState<number | null>(null);
+interface PracticeSession {
+  id: string;
+  sessionType: 'PRACTICE' | 'TIMED' | 'MOCK_EXAM' | 'REVIEW';
+  subject: string;
+  topics?: string[];
+  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
+  questionCount: number;
+  answeredCount?: number;
+  correctCount?: number;
+  timeLimit?: number;
+  questions: Question[];
+  attempts: QuestionAttempt[];
+  startTime: Date;
+  endTime?: Date;
+  isCompleted: boolean;
+}
 
-  const currentQuestion = getNextQuestion();
-  const totalQuestions = currentSession?.questions.length || 0;
-  const answeredQuestions = currentSession?.attempts.length || 0;
+interface Flashcard {
+  id: number;
+  subject: string;
+  topic: string;
+  type: 'DEFINITION' | 'CONCEPT' | 'FILL_IN_THE_BLANK' | 'DIAGRAM_LABELING' | 'QUICK_FACT' | 'MNEMONIC' | 'QUESTION_ANSWER';
+  front: string;
+  back: string;
+  imageUrl?: string;
+}
 
-  useEffect(() => {
-    // Timer for question
-    const timer = setInterval(() => {
-      setTimeSpent(prev => prev + 1);
-    }, 1000);
+interface Passage {
+  id: number;
+  subject: string;
+  text: string;
+  type: 'COMPREHENSION' | 'CLOZE';
+  questions: Question[];
+}
 
-    return () => clearInterval(timer);
-  }, [currentQuestionIndex]);
+interface PracticeStats {
+  totalQuestions: number;
+  correctAnswers: number;
+  accuracy: number;
+  averageTimePerQuestion: number;
+  strongTopics: string[];
+  weakTopics: string[];
+  streakCount: number;
+  lastPracticeDate: Date;
+}
 
-  useEffect(() => {
-    // Reset for new question
-    setSelectedAnswer(null);
-    setShowExplanation(false);
-    setTimeSpent(0);
-    setConfidenceLevel(null);
-  }, [currentQuestionIndex]);
+interface PracticeSettings {
+  autoMoveNext: boolean;
+  showExplanations: boolean;
+  timeWarnings: boolean;
+  confidenceTracking: boolean;
+  practiceReminders: boolean;
+  dailyGoal: number;
+}
 
-  const handleAnswerSubmit = async () => {
-    if (selectedAnswer === null || !currentQuestion) return;
+interface PracticeStore {
+  currentSession: PracticeSession | null;
+  currentQuestionIndex: number;
+  recentSessions: PracticeSession[];
+  practiceStats: PracticeStats | null;
+  settings: PracticeSettings;
+  flashcards: Flashcard[];
+  passages: Passage[];
+  isLoading: boolean;
+  error: string | null;
+  startPracticeSession: (config: {
+    subject: string;
+    sessionType: PracticeSession['sessionType'];
+    questionCount: number;
+    topics?: string[];
+    difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
+    timeLimit?: number;
+  }) => Promise<void>;
+  endSession: () => Promise<void>;
+  pauseSession: () => Promise<void>;
+  resumeSession: () => Promise<void>;
+  getNextQuestion: () => Question | null;
+  getCurrentQuestion: () => Question | null;
+  skipQuestion: () => void;
+  goToQuestion: (index: number) => void;
+  submitAnswer: (attempt: Omit<QuestionAttempt, 'timestamp' | 'isCorrect'>) => Promise<void>;
+  updateAnswer: (questionId: number, selectedAnswer: number) => void;
+  fetchPracticeStats: () => Promise<void>;
+  fetchRecentSessions: () => Promise<void>;
+  savePracticeSession: (session: PracticeSession) => Promise<void>;
+  loadPracticeSession: (sessionId: string) => Promise<void>;
+  updateSettings: (newSettings: Partial<PracticeSettings>) => Promise<void>;
+  generatePracticeQuestions: (config: {
+    subject: string;
+    count: number;
+    topics?: string[];
+    difficulty?: string;
+    excludeAnswered?: boolean;
+  }) => Promise<Question[]>;
+  getWeakTopicsQuestions: (subject: string, count: number) => Promise<Question[]>;
+  getMixedQuestions: (subjects: string[], count: number) => Promise<Question[]>;
+  fetchPassages: (subject: string) => Promise<void>;
+  syncOfflineData: () => Promise<void>;
+  calculateSessionAccuracy: (session: PracticeSession) => number;
+  getSessionStats: () => { answeredCount: number; correctCount: number };
+  getTopicPerformance: (subject: string) => Promise<any>;
+  getStudyStreak: () => number;
+  clearError: () => void;
+  reset: () => void;
+}
 
-    const attempt: QuestionAttempt = {
-      questionId: currentQuestion.id,
-      selectedAnswer,
-      isCorrect: selectedAnswer === currentQuestion.correctAnswer,
-      timeSpent,
-      confidenceLevel: confidenceLevel || undefined
-    };
+export const usePracticeStore = create<PracticeStore>((set, get) => ({
+  currentSession: null,
+  currentQuestionIndex: 0,
+  recentSessions: [],
+  practiceStats: null,
+  settings: {
+    autoMoveNext: false,
+    showExplanations: true,
+    timeWarnings: true,
+    confidenceTracking: true,
+    practiceReminders: true,
+    dailyGoal: 20
+  },
+  flashcards: [],
+  passages: [],
+  isLoading: false,
+  error: null,
 
-    await submitAnswer(attempt);
-    setShowExplanation(true);
-  };
-
-  const handleNextQuestion = () => {
-    if (answeredQuestions >= totalQuestions) {
-      handleEndSession();
-    } else {
-      setShowExplanation(false);
+  startPracticeSession: async (config) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await api.post('/practice/start-session', {
+        subject: config.subject,
+        topics: config.topics || [],
+        difficulty: config.difficulty,
+        questionCount: config.questionCount
+      });
+      const sessionData = response.data;
+      const questionsResponse = await api.post('/practice/questions/generate', {
+        subject: config.subject,
+        topics: config.topics,
+        difficulty: config.difficulty,
+        count: config.questionCount,
+        excludeAnswered: true
+      });
+      const session: PracticeSession = {
+        id: sessionData.id,
+        sessionType: config.sessionType,
+        subject: config.subject,
+        topics: config.topics,
+        difficulty: config.difficulty,
+        questionCount: config.questionCount,
+        timeLimit: config.timeLimit,
+        questions: questionsResponse.data.questions,
+        attempts: [],
+        startTime: new Date(sessionData.startTime),
+        isCompleted: false
+      };
+      set({ currentSession: session, currentQuestionIndex: 0, isLoading: false });
+      await AsyncStorage.setItem(`practice_session_${session.id}`, JSON.stringify(session));
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to start practice session', isLoading: false });
+      throw error;
     }
-  };
+  },
 
-  const handleEndSession = async () => {
-    await endSession();
-    navigation.navigate('PracticeResults');
-  };
+  endSession: async () => {
+    const session = get().currentSession;
+    if (!session) return;
+    try {
+      const completedSession: PracticeSession = {
+        ...session,
+        endTime: new Date(),
+        isCompleted: true
+      };
+      await api.post('/practice/end-session', { sessionId: session.id });
+      await get().savePracticeSession(completedSession);
+      set({ currentSession: null, currentQuestionIndex: 0 });
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to end session' });
+      throw error;
+    }
+  },
 
-  const handleQuitSession = () => {
-    Alert.alert(
-      'Quit Session?',
-      'Your progress will be saved. Are you sure you want to quit?',
-      [
-        { text: 'Continue', style: 'cancel' },
-        { 
-          text: 'Quit', 
-          style: 'destructive',
-          onPress: handleEndSession
+  pauseSession: async () => {
+    const session = get().currentSession;
+    if (session) {
+      await AsyncStorage.setItem(`practice_session_${session.id}`, JSON.stringify(session));
+    }
+  },
+
+  resumeSession: async () => {
+    const session = get().currentSession;
+    if (session) {
+      await get().loadPracticeSession(session.id);
+    }
+  },
+
+  getNextQuestion: () => {
+    const { currentSession, currentQuestionIndex } = get();
+    if (!currentSession || currentQuestionIndex >= currentSession.questions.length) {
+      return null;
+    }
+    return currentSession.questions[currentQuestionIndex];
+  },
+
+  getCurrentQuestion: () => {
+    const { currentSession, currentQuestionIndex } = get();
+    if (!currentSession) return null;
+    return currentSession.questions[currentQuestionIndex];
+  },
+
+  skipQuestion: () => {
+    set(state => ({
+      currentQuestionIndex: Math.min(
+        state.currentQuestionIndex + 1,
+        (state.currentSession?.questions.length || 0) - 1
+      )
+    }));
+  },
+
+  goToQuestion: (index: number) => {
+    set(state => ({
+      currentQuestionIndex: Math.max(0, Math.min(index, (state.currentSession?.questions.length || 0) - 1))
+    }));
+  },
+
+  submitAnswer: async (attempt: Omit<QuestionAttempt, 'timestamp' | 'isCorrect'>) => {
+    try {
+      const response = await api.post('/practice/submit-answer', {
+        sessionId: get().currentSession?.id,
+        questionId: attempt.questionId,
+        selectedOption: attempt.selectedAnswer,
+        timeTaken: attempt.timeSpent,
+        confidenceLevel: attempt.confidenceLevel
+      });
+      const { isCorrect } = response.data;
+      const updatedAttempt: QuestionAttempt = {
+        ...attempt,
+        isCorrect,
+        timestamp: new Date()
+      };
+      set(state => ({
+        currentSession: state.currentSession ? {
+          ...state.currentSession,
+          attempts: [...state.currentSession.attempts, updatedAttempt]
+        } : null
+      }));
+      await AsyncStorage.setItem(`practice_session_${get().currentSession?.id}`, JSON.stringify(get().currentSession));
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to submit answer' });
+      throw error;
+    }
+  },
+
+  updateAnswer: (questionId: number, selectedAnswer: number) => {
+    set(state => ({
+      currentSession: state.currentSession ? {
+        ...state.currentSession,
+        attempts: state.currentSession.attempts.map(attempt =>
+          attempt.questionId === questionId ? { ...attempt, selectedAnswer } : attempt
+        )
+      } : null
+    }));
+  },
+
+  fetchPracticeStats: async () => {
+    try {
+      const response = await api.get('/practice/stats');
+      set({ practiceStats: response.data });
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to fetch stats' });
+    }
+  },
+
+  fetchRecentSessions: async () => {
+    try {
+      const response = await api.get('/practice/history', { params: { page: 1, limit: 10 } });
+      set({ recentSessions: response.data.sessions });
+    } catch (error) {
+      const sessions = await Promise.all(
+        Array.from({ length: 10 }, async (_, i) => {
+          const sessionData = await AsyncStorage.getItem(`practice_session_session_${Date.now() - i * 86400000}`);
+          return sessionData ? JSON.parse(sessionData) : null;
+        })
+      );
+      set({ recentSessions: sessions.filter(Boolean) });
+    }
+  },
+
+  savePracticeSession: async (session: PracticeSession) => {
+    try {
+      await api.post('/practice/offline-sync', {
+        resourceType: 'PracticeSession',
+        resourceId: session.id,
+        action: session.isCompleted ? 'UPDATE' : 'CREATE',
+        data: session
+      });
+      await AsyncStorage.setItem(`practice_session_${session.id}`, JSON.stringify(session));
+    } catch (error) {
+      await AsyncStorage.setItem(`practice_session_${session.id}`, JSON.stringify(session));
+      console.error('Failed to save session to API:', error);
+    }
+  },
+
+  loadPracticeSession: async (sessionId: string) => {
+    try {
+      set({ isLoading: true });
+      const response = await api.get(`/practice/sessions/${sessionId}`);
+      set({ currentSession: response.data.session, isLoading: false });
+    } catch (error) {
+      try {
+        const sessionData = await AsyncStorage.getItem(`practice_session_${sessionId}`);
+        if (sessionData) {
+          set({ currentSession: JSON.parse(sessionData), isLoading: false });
+        } else {
+          throw new Error('Session not found');
         }
-      ]
-    );
-  };
+      } catch (storageError) {
+        set({ error: 'Failed to load practice session', isLoading: false });
+      }
+    }
+  },
 
-  if (!currentSession || !currentQuestion) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, color: '#6B7280' }}>Loading questions...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  updateSettings: async (newSettings: Partial<PracticeSettings>) => {
+    try {
+      const updatedSettings = { ...get().settings, ...newSettings };
+      set({ settings: updatedSettings });
+      await api.put('/practice/settings', updatedSettings);
+      await AsyncStorage.setItem('practice_settings', JSON.stringify(updatedSettings));
+    } catch (error) {
+      await AsyncStorage.setItem('practice_settings', JSON.stringify(get().settings));
+      console.error('Failed to update settings:', error);
+    }
+  },
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-      <View style={{ flex: 1 }}>
-        {/* Header */}
-        <View style={{ 
-          flexDirection: 'row', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          padding: 24,
-          paddingBottom: 16,
-          borderBottomWidth: 1,
-          borderBottomColor: '#E5E7EB'
-        }}>
-          <TouchableOpacity onPress={handleQuitSession}>
-            <Text style={{ fontSize: 16, color: '#EF4444' }}>✕</Text>
-          </TouchableOpacity>
-          
-          <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937' }}>
-              {answeredQuestions + 1} of {totalQuestions}
-            </Text>
-            <Text style={{ fontSize: 12, color: '#6B7280' }}>
-              {Math.round((timeSpent / 60) * 10) / 10} min
-            </Text>
-          </View>
-          
-          <Text style={{ fontSize: 14, color: '#3B82F6', fontWeight: '600' }}>
-            {currentSession.sessionType.toUpperCase()}
-          </Text>
-        </View>
+  generatePracticeQuestions: async (config) => {
+    try {
+      const response = await api.post('/practice/questions/generate', config);
+      return response.data.questions;
+    } catch (error) {
+      return [];
+    }
+  },
 
-        {/* Progress Bar */}
-        <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
-          <View style={{ 
-            height: 4, 
-            backgroundColor: '#E5E7EB', 
-            borderRadius: 2, 
-            overflow: 'hidden' 
-          }}>
-            <View style={{ 
-              height: '100%', 
-              backgroundColor: '#3B82F6',
-              width: `${((answeredQuestions + 1) / totalQuestions) * 100}%`
-            }} />
-          </View>
-        </View>
+  getWeakTopicsQuestions: async (subject: string, count: number) => {
+    try {
+      const response = await api.get(`/practice/questions/weak-topics`, {
+        params: { subject, count }
+      });
+      return response.data.questions;
+    } catch (error) {
+      return [];
+    }
+  },
 
-        {/* Question Content */}
-        <ScrollView style={{ flex: 1, paddingHorizontal: 24 }}>
-          {/* Subject & Difficulty */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-            <Text style={{ 
-              fontSize: 14, 
-              color: '#6B7280', 
-              textTransform: 'capitalize' 
-            }}>
-              {currentQuestion.subject} • {currentQuestion.topic}
-            </Text>
-            <View style={{
-              paddingHorizontal: 8,
-              paddingVertical: 2,
-              backgroundColor: getDifficultyColor(currentQuestion.difficulty).bg,
-              borderRadius: 4
-            }}>
-              <Text style={{ 
-                fontSize: 12, 
-                color: getDifficultyColor(currentQuestion.difficulty).text,
-                fontWeight: '500'
-              }}>
-                {currentQuestion.difficulty.toUpperCase()}
-              </Text>
-            </View>
-          </View>
+  getMixedQuestions: async (subjects: string[], count: number) => {
+    try {
+      const response = await api.post('/practice/questions/mixed', {
+        subjects,
+        count
+      });
+      return response.data.questions;
+    } catch (error) {
+      return [];
+    }
+  },
 
-          {/* Question */}
-          <View style={{ 
-            backgroundColor: '#F9FAFB', 
-            padding: 20, 
-            borderRadius: 12, 
-            marginBottom: 24 
-          }}>
-            <Text style={{ 
-              fontSize: 16, 
-              color: '#1F2937', 
-              lineHeight: 24,
-              fontWeight: '500'
-            }}>
-              {currentQuestion.question}
-            </Text>
-          </View>
+  fetchPassages: async (subject) => {
+    try {
+      const response = await api.get('/practice/passages', { params: { subject } });
+      set({ passages: response.data.passages });
+    } catch (error) {
+      set({ error: 'Failed to fetch passages' });
+    }
+  },
 
-          {/* Confidence Level (before answering) */}
-          {!showExplanation && selectedAnswer !== null && (
-            <View style={{ marginBottom: 24 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
-                How confident are you?
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {[1, 2, 3, 4, 5].map(level => (
-                  <TouchableOpacity
-                    key={level}
-                    onPress={() => setConfidenceLevel(level)}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 8,
-                      paddingHorizontal: 12,
-                      backgroundColor: confidenceLevel === level ? '#EFF6FF' : '#F9FAFB',
-                      borderWidth: 2,
-                      borderColor: confidenceLevel === level ? '#3B82F6' : '#E5E7EB',
-                      borderRadius: 8,
-                      alignItems: 'center'
-                    }}
-                  >
-                    <Text style={{ 
-                      fontSize: 12, 
-                      color: confidenceLevel === level ? '#1E40AF' : '#6B7280',
-                      fontWeight: '500'
-                    }}>
-                      {level === 1 ? 'Not sure' : level === 5 ? 'Very sure' : level.toString()}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
+  syncOfflineData: async () => {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const sessionKeys = keys.filter(key => key.startsWith('practice_session_'));
+      for (const key of sessionKeys) {
+        const sessionData = await AsyncStorage.getItem(key);
+        if (sessionData) {
+          const session = JSON.parse(sessionData);
+          await api.post('/practice/offline-sync', {
+            resourceType: 'PracticeSession',
+            resourceId: session.id,
+            action: session.isCompleted ? 'UPDATE' : 'CREATE',
+            data: session
+          });
+          await AsyncStorage.removeItem(key);
+        }
+      }
+    } catch (error) {
+      set({ error: 'Failed to sync offline data' });
+    }
+  },
 
-          {/* Answer Options */}
-          <View style={{ gap: 12, marginBottom: 24 }}>
-            {currentQuestion.options.map((option, index) => {
-              const isSelected = selectedAnswer === index;
-              const isCorrect = index === currentQuestion.correctAnswer;
-              const showResult = showExplanation;
-              
-              let backgroundColor = 'white';
-              let borderColor = '#E5E7EB';
-              let textColor = '#374151';
-              
-              if (showResult) {
-                if (isCorrect) {
-                  backgroundColor = '#F0FDF4';
-                  borderColor = '#10B981';
-                  textColor = '#065F46';
-                } else if (isSelected && !isCorrect) {
-                  backgroundColor = '#FEF2F2';
-                  borderColor = '#EF4444';
-                  textColor = '#991B1B';
-                }
-              } else if (isSelected) {
-                backgroundColor = '#EFF6FF';
-                borderColor = '#3B82F6';
-                textColor = '#1E40AF';
-              }
-              
-              return (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => !showExplanation && setSelectedAnswer(index)}
-                  disabled={showExplanation}
-                  style={{
-                    backgroundColor,
-                    borderWidth: 2,
-                    borderColor,
-                    borderRadius: 12,
-                    padding: 16,
-                    flexDirection: 'row',
-                    alignItems: 'center'
-                  }}
-                >
-                  <View style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 12,
-                    borderWidth: 2,
-                    borderColor: showResult && isCorrect ? '#10B981' : 
-                                showResult && isSelected && !isCorrect ? '#EF4444' :
-                                isSelected ? '#3B82F6' : '#D1D5DB',
-                    backgroundColor: showResult && isCorrect ? '#10B981' : 
-                                   showResult && isSelected && !isCorrect ? '#EF4444' :
-                                   isSelected ? '#3B82F6' : 'transparent',
-                    marginRight: 12,
-                    justifyContent: 'center',
-                    alignItems: 'center'
-                  }}>
-                    {showResult && isCorrect && (
-                      <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
-                    )}
-                    {showResult && isSelected && !isCorrect && (
-                      <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>✕</Text>
-                    )}
-                    {!showResult && isSelected && (
-                      <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
-                        {String.fromCharCode(65 + index)}
-                      </Text>
-                    )}
-                  </View>
-                  <Text style={{ 
-                    fontSize: 16, 
-                    color: textColor,
-                    flex: 1,
-                    fontWeight: showResult && (isCorrect || (isSelected && !isCorrect)) ? '600' : 'normal'
-                  }}>
-                    {option}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+  calculateSessionAccuracy: (session: PracticeSession) => {
+    if (session.attempts.length === 0) return 0;
+    const correct = session.attempts.filter(a => a.isCorrect).length;
+    return (correct / session.attempts.length) * 100;
+  },
 
-          {/* Explanation */}
-          {showExplanation && (
-            <View style={{ 
-              backgroundColor: '#F0F9FF', 
-              padding: 20, 
-              borderRadius: 12, 
-              marginBottom: 24,
-              borderLeftWidth: 4,
-              borderLeftColor: '#3B82F6'
-            }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#1E40AF', marginBottom: 8 }}>
-                Explanation
-              </Text>
-              <Text style={{ fontSize: 14, color: '#1E40AF', lineHeight: 20 }}>
-                {currentQuestion.explanation}
-              </Text>
-              
-              {/* Performance Feedback */}
-              <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#BFDBFE' }}>
-                <Text style={{ fontSize: 12, color: '#1E40AF' }}>
-                  ⏱️ Time: {timeSpent}s • 
-                  {confidenceLevel && ` 🎯 Confidence: ${confidenceLevel}/5 • `}
-                  💡 Cognitive Level: {currentQuestion.cognitiveLevel}
-                </Text>
-              </View>
-            </View>
-          )}
-        </ScrollView>
+  getTopicPerformance: async (subject: string) => {
+    try {
+      const response = await api.get(`/practice/analytics/topics/${subject}`);
+      return response.data.performance;
+    } catch (error) {
+      return {};
+    }
+  },
 
-        {/* Action Buttons */}
-        <View style={{ padding: 24 }}>
-          {!showExplanation ? (
-            <Button
-              title="Submit Answer"
-              onPress={handleAnswerSubmit}
-              disabled={selectedAnswer === null}
-              size="large"
-            />
-          ) : (
-            <Button
-              title={answeredQuestions >= totalQuestions ? "View Results" : "Next Question"}
-              onPress={handleNextQuestion}
-              size="large"
-            />
-          )}
-        </View>
-      </View>
-    </SafeAreaView>
-  );
-};
+  getStudyStreak: () => {
+    const recentSessions = get().recentSessions;
+    let streak = 0;
+    const today = new Date();
+    for (let i = 0; i < recentSessions.length; i++) {
+      const sessionDate = new Date(recentSessions[i].startTime);
+      const daysDiff = Math.floor((today.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysDiff === i) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  },
+
+  getSessionStats: () => {
+    const session = get().currentSession;
+    if (!session) return { answeredCount: 0, correctCount: 0 };
+    const answeredCount = session.attempts.length;
+    const correctCount = session.attempts.filter(a => a.isCorrect).length;
+    return { answeredCount, correctCount };
+  },
+
+
+  clearError: () => set({ error: null }),
+
+  reset: () => set({
+    currentSession: null,
+    currentQuestionIndex: 0,
+    error: null
+  })
+}));
+
+export type { Question, QuestionAttempt, PracticeSession, Flashcard, Passage, PracticeStats, PracticeSettings };

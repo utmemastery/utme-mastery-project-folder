@@ -1,15 +1,14 @@
-// mobile/src/screens/auth/EmailVerificationScreen.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
+import { AuthService } from '../../services/authService';
 import { Button } from '../../components/ui/Button';
 import { StackScreenProps } from '@react-navigation/stack';
 import { AuthStackParamList } from '../../navigation/types';
-
+import { debounce } from 'lodash';
 
 type EmailVerificationScreenProps = StackScreenProps<AuthStackParamList, 'EmailVerification'>;
-
 
 export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = ({ 
   navigation, 
@@ -19,9 +18,10 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [isResendLoading, setIsResendLoading] = useState(false);
   
   const { verifyEmail, isLoading, error, clearError } = useAuthStore();
-  const inputRefs = useRef<TextInput[]>([]);
+  const inputRefs = useRef<(TextInput | null)[]>(Array(6).fill(null));
 
   useEffect(() => {
     if (countdown > 0) {
@@ -48,7 +48,7 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
     }
   };
 
-  const handleVerification = async (verificationCode?: string) => {
+  const handleVerification = debounce(async (verificationCode?: string) => {
     const codeToVerify = verificationCode || code.join('');
     
     if (codeToVerify.length !== 6) {
@@ -66,19 +66,21 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
         [{ text: 'Continue', onPress: () => navigation.replace('Onboarding') }]
       );
     } catch (error) {
-      // Error handled by store
       setCode(['', '', '', '', '', '']); // Clear code on error
     }
-  };
+  }, 300);
 
   const handleResendCode = async () => {
+    setIsResendLoading(true);
     try {
-      // Add resend verification API call here
+      await AuthService.resendVerificationCode(email);
       setCountdown(60);
       setCanResend(false);
       Alert.alert('Success', 'Verification code sent successfully');
     } catch (error) {
       Alert.alert('Error', 'Failed to resend code. Please try again.');
+    } finally {
+      setIsResendLoading(false);
     }
   };
 
@@ -108,7 +110,7 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
             <TextInput
               key={index}
               ref={(ref) => {
-                if (ref) inputRefs.current[index] = ref;
+                inputRefs.current[index] = ref;
               }}
               style={{
                 width: 48,
@@ -158,14 +160,14 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
           </Text>
           <TouchableOpacity 
             onPress={handleResendCode}
-            disabled={!canResend}
+            disabled={!canResend || isResendLoading}
           >
             <Text style={{ 
-              color: canResend ? '#3B82F6' : '#9CA3AF', 
+              color: canResend && !isResendLoading ? '#3B82F6' : '#9CA3AF', 
               fontSize: 14, 
               fontWeight: '600' 
             }}>
-              {canResend ? 'Resend Code' : `Resend in ${countdown}s`}
+              {isResendLoading ? 'Sending...' : canResend ? 'Resend Code' : `Resend in ${countdown}s`}
             </Text>
           </TouchableOpacity>
         </View>

@@ -2,7 +2,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text } from 'react-native';
-import { DashboardScreen } from '../screens/DashboardScreen';
+import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
 import { PracticeNavigator } from './PracticeNavigator';
 import { StudyPlanScreen } from '../screens/study/StudyPlanScreen';
 import { FlashcardNavigator } from './FlashcardNavigator';

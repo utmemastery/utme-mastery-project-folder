@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { AuthService, User } from '../services/authService';
-import api from '../services/api'; // assuming you have this for profile update
+import * as Sentry from '@sentry/react-native';
+import { AuthService, User, RegisterData } from '../services/authService';
+import api from '../services/api';
 
 interface AuthState {
   user: User | null;
@@ -10,10 +11,11 @@ interface AuthState {
 
   // Actions
   login: (email: string, password: string) => Promise<void>;
-  register: (data: any) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   verifyEmail: (email: string, code: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, password: string) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   initializeAuth: () => Promise<void>;
   clearError: () => void;
@@ -31,18 +33,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { user } = await AuthService.login({ email, password });
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Login failed', isLoading: false });
+      Sentry.captureException(error);
+      set({ error: error.message || 'Login failed', isLoading: false });
       throw error;
     }
   },
 
-  register: async (data: any) => {
+  register: async (data: RegisterData) => {
     set({ isLoading: true, error: null });
     try {
       const user = await AuthService.register(data);
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Registration failed', isLoading: false });
+      Sentry.captureException(error);
+      set({ error: error.message || 'Registration failed', isLoading: false });
       throw error;
     }
   },
@@ -53,7 +57,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await AuthService.logout();
       set({ user: null, isAuthenticated: false, isLoading: false });
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Logout failed', isLoading: false });
+      Sentry.captureException(error);
+      set({ error: error.message || 'Logout failed', isLoading: false });
       throw error;
     }
   },
@@ -71,7 +76,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: false });
       }
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Verification failed', isLoading: false });
+      Sentry.captureException(error);
+      set({ error: error.message || 'Verification failed', isLoading: false });
       throw error;
     }
   },
@@ -82,7 +88,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await AuthService.forgotPassword(email);
       set({ isLoading: false });
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Failed to send password reset instructions', isLoading: false });
+      Sentry.captureException(error);
+      set({ error: error.message || 'Failed to send password reset instructions', isLoading: false });
+      throw error;
+    }
+  },
+
+  resetPassword: async (token: string, password: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await AuthService.resetPassword(token, password);
+      set({ isLoading: false });
+    } catch (error: any) {
+      Sentry.captureException(error);
+      set({ error: error.message || 'Password reset failed', isLoading: false });
       throw error;
     }
   },
@@ -93,7 +112,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const response = await api.put('/user/profile', data);
       set({ user: response.data.user, isLoading: false });
     } catch (error: any) {
-      set({ error: error.response?.data?.error || 'Profile update failed', isLoading: false });
+      Sentry.captureException(error);
+      set({ error: error.message || 'Profile update failed', isLoading: false });
       throw error;
     }
   },
@@ -104,7 +124,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const isAuth = await AuthService.isAuthenticated();
       const user = await AuthService.getCurrentUser();
       set({ isAuthenticated: isAuth, user, isLoading: false });
-    } catch {
+    } catch (error: any) {
+      Sentry.captureException(error);
       set({ isAuthenticated: false, user: null, isLoading: false });
     }
   },

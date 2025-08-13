@@ -1,25 +1,73 @@
-// mobile/src/screens/practice/PracticeHomeScreen.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { usePracticeStore } from '../../stores/practiceStore';
+import api from '../../services/api';
 
 interface PracticeHomeScreenProps {
   navigation: any;
 }
 
+interface SubjectCard {
+  id: string;
+  name: string;
+  icon: string;
+  progress: number;
+  lastScore: number;
+  weakTopics: string[];
+}
+
 export const PracticeHomeScreen: React.FC<PracticeHomeScreenProps> = ({ navigation }) => {
   const { user } = useAuthStore();
   const { startPracticeSession, isLoading } = usePracticeStore();
+  const [subjectCards, setSubjectCards] = useState<SubjectCard[]>([]);
 
-  const selectedSubjects = user?.selectedSubjects || [];
+  useEffect(() => {
+    const fetchProgress = async () => {
+      try {
+        const response = await api.get('/practice/analytics/subjects', {
+          params: { subjects: user?.selectedSubjects.join(',') }
+        });
+       setSubjectCards(
+        (user?.selectedSubjects ?? []).map(subject => ({
+          id: subject,
+          name: subject.charAt(0).toUpperCase() + subject.slice(1),
+          icon: getSubjectIcon(subject),
+          progress: response.data[subject]?.mastery || 0,
+          lastScore: response.data[subject]?.lastScore || 0,
+          weakTopics: response.data[subject]?.weakTopics || []
+        }))
+      );
+      } catch (error) {
+        console.error('Failed to fetch progress:', error);
+       setSubjectCards(
+        (user?.selectedSubjects ?? []).map(subject => ({
+          id: subject,
+          name: subject.charAt(0).toUpperCase() + subject.slice(1),
+          icon: getSubjectIcon(subject),
+          progress: 0,
+          lastScore: 0,
+          weakTopics: []
+        }))
+      );
+      }
+    };
+    fetchProgress();
+  }, [user?.selectedSubjects]);
 
   const handleStartPractice = async (subject: string, type: string = 'practice') => {
     try {
+      const sessionTypeMap: Record<string, 'PRACTICE' | 'TIMED' | 'MOCK_EXAM' | 'REVIEW'> = {
+        daily: 'PRACTICE',
+        quick: 'PRACTICE',
+        revision: 'REVIEW',
+        practice: 'PRACTICE',
+        timed: 'TIMED'
+      };
       await startPracticeSession({
         subject,
-        sessionType: type,
+        sessionType: sessionTypeMap[type] || 'PRACTICE',
         questionCount: type === 'quick' ? 5 : 10
       });
       navigation.navigate('PracticeSession');
@@ -27,15 +75,6 @@ export const PracticeHomeScreen: React.FC<PracticeHomeScreenProps> = ({ navigati
       // Error handled by store
     }
   };
-
-  const subjectCards = selectedSubjects.map(subject => ({
-    id: subject,
-    name: subject.charAt(0).toUpperCase() + subject.slice(1),
-    icon: getSubjectIcon(subject),
-    progress: Math.floor(Math.random() * 100), // Replace with real progress
-    weakTopics: ['Topic 1', 'Topic 2'], // Replace with real data
-    lastScore: Math.floor(Math.random() * 100)
-  }));
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
@@ -56,7 +95,6 @@ export const PracticeHomeScreen: React.FC<PracticeHomeScreenProps> = ({ navigati
             <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 16 }}>
               Quick Start
             </Text>
-            
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity
                 onPress={() => handleStartPractice('mixed', 'daily')}
@@ -76,7 +114,6 @@ export const PracticeHomeScreen: React.FC<PracticeHomeScreenProps> = ({ navigati
                   5 mixed questions
                 </Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 onPress={() => navigation.navigate('MockExam')}
                 style={{
@@ -103,7 +140,6 @@ export const PracticeHomeScreen: React.FC<PracticeHomeScreenProps> = ({ navigati
             <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 16 }}>
               Practice by Subject
             </Text>
-            
             <View style={{ gap: 16 }}>
               {subjectCards.map((subject) => (
                 <TouchableOpacity
@@ -141,23 +177,19 @@ export const PracticeHomeScreen: React.FC<PracticeHomeScreenProps> = ({ navigati
                       </Text>
                     </View>
                   </View>
-
-                  {/* Progress Bar */}
-                  <View style={{ 
-                    height: 4, 
-                    backgroundColor: '#E5E7EB', 
-                    borderRadius: 2, 
+                  <View style={{
+                    height: 4,
+                    backgroundColor: '#E5E7EB',
+                    borderRadius: 2,
                     overflow: 'hidden',
                     marginBottom: 12
                   }}>
-                    <View style={{ 
-                      height: '100%', 
+                    <View style={{
+                      height: '100%',
                       backgroundColor: '#3B82F6',
                       width: `${subject.progress}%`
                     }} />
                   </View>
-
-                  {/* Weak Topics */}
                   {subject.weakTopics.length > 0 && (
                     <View>
                       <Text style={{ fontSize: 12, color: '#EF4444', marginBottom: 4 }}>
@@ -175,7 +207,6 @@ export const PracticeHomeScreen: React.FC<PracticeHomeScreenProps> = ({ navigati
   );
 };
 
-// Helper function for subject icons
 const getSubjectIcon = (subject: string): string => {
   const icons: Record<string, string> = {
     english: '📚',

@@ -1,5 +1,4 @@
-// mobile/src/screens/practice/PracticeResultsScreen.tsx
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePracticeStore } from '../../stores/practiceStore';
@@ -10,7 +9,8 @@ interface PracticeResultsScreenProps {
 }
 
 export const PracticeResultsScreen: React.FC<PracticeResultsScreenProps> = ({ navigation }) => {
-  const { currentSession } = usePracticeStore();
+  const { currentSession, getSessionStats } = usePracticeStore();
+  
 
   if (!currentSession) {
     return (
@@ -22,15 +22,13 @@ export const PracticeResultsScreen: React.FC<PracticeResultsScreenProps> = ({ na
     );
   }
 
-  const { questions, attempts, startTime, endTime } = currentSession;
-  const totalQuestions = questions.length;
-  const totalAttempts = attempts.length;
-  const correctAnswers = attempts.filter(a => a.isCorrect).length;
-  const accuracy = totalAttempts > 0 ? (correctAnswers / totalAttempts) * 100 : 0;
-  const avgTimePerQuestion = attempts.reduce((sum, a) => sum + a.timeSpent, 0) / attempts.length;
+  const { startTime, endTime, questions, attempts } = currentSession;
+  const { answeredCount, correctCount } = getSessionStats();
+  const totalQuestions = currentSession.questionCount;
+  const accuracy = answeredCount > 0 ? (correctCount / answeredCount) * 100 : 0;
+  const avgTimePerQuestion = attempts.reduce((sum, a) => sum + a.timeSpent, 0) / attempts.length || 0;
   const sessionDuration = endTime ? Math.round((endTime.getTime() - startTime.getTime()) / 1000) : 0;
 
-  // Performance analysis
   const getPerformanceLevel = (accuracy: number) => {
     if (accuracy >= 85) return { level: 'Excellent', color: '#10B981', emoji: '🎉' };
     if (accuracy >= 70) return { level: 'Good', color: '#3B82F6', emoji: '👍' };
@@ -40,7 +38,6 @@ export const PracticeResultsScreen: React.FC<PracticeResultsScreenProps> = ({ na
 
   const performance = getPerformanceLevel(accuracy);
 
-  // Topic analysis
   const topicPerformance = questions.reduce((acc, question) => {
     const attempt = attempts.find(a => a.questionId === question.id);
     if (attempt) {
@@ -69,9 +66,9 @@ export const PracticeResultsScreen: React.FC<PracticeResultsScreenProps> = ({ na
           </View>
 
           {/* Overall Score */}
-          <View style={{ 
-            backgroundColor: 'white', 
-            borderRadius: 16, 
+          <View style={{
+            backgroundColor: 'white',
+            borderRadius: 16,
             padding: 24,
             marginBottom: 24,
             alignItems: 'center',
@@ -88,36 +85,36 @@ export const PracticeResultsScreen: React.FC<PracticeResultsScreenProps> = ({ na
               {performance.level}
             </Text>
             <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
-              {correctAnswers} out of {totalAttempts} questions correct
+              {correctCount} out of {answeredCount} questions correct
             </Text>
           </View>
 
           {/* Stats Grid */}
-          <View style={{ 
-            flexDirection: 'row', 
-            flexWrap: 'wrap', 
-            gap: 12, 
-            marginBottom: 24 
+          <View style={{
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 12,
+            marginBottom: 24
           }}>
-            <StatCard 
+            <StatCard
               title="Questions"
-              value={`${totalAttempts}/${totalQuestions}`}
+              value={`${answeredCount}/${totalQuestions}`}
               subtitle="Attempted"
               icon="📝"
             />
-            <StatCard 
+            <StatCard
               title="Avg Time"
               value={`${Math.round(avgTimePerQuestion)}s`}
               subtitle="Per question"
               icon="⏱️"
             />
-            <StatCard 
+            <StatCard
               title="Duration"
               value={`${Math.round(sessionDuration / 60)}m`}
               subtitle="Total time"
               icon="⏰"
             />
-            <StatCard 
+            <StatCard
               title="Streak"
               value={getMaxStreak(attempts).toString()}
               subtitle="Max correct"
@@ -127,36 +124,35 @@ export const PracticeResultsScreen: React.FC<PracticeResultsScreenProps> = ({ na
 
           {/* Topic Performance */}
           {Object.keys(topicPerformance).length > 1 && (
-            <View style={{ 
-              backgroundColor: 'white', 
-              borderRadius: 16, 
+            <View style={{
+              backgroundColor: 'white',
+              borderRadius: 16,
               padding: 20,
-              marginBottom: 24 
+              marginBottom: 24
             }}>
               <Text style={{ fontSize: 18, fontWeight: '600', color: '#1F2937', marginBottom: 16 }}>
                 Topic Breakdown
               </Text>
-              
               {Object.entries(topicPerformance).map(([topic, stats]) => {
                 const topicAccuracy = (stats.correct / stats.total) * 100;
                 return (
                   <View key={topic} style={{ marginBottom: 12 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 14, color: '#374151', fontWeight: '500' }}>
                         {topic}
                       </Text>
-                      <Text style={{ fontSize: 14, color: '#6B7280' }}>
-                        {stats.correct}/{stats.total}
+                      <Text style={{ fontSize: 14, color: getAccuracyColor(topicAccuracy), fontWeight: '600' }}>
+                        {Math.round(topicAccuracy)}%
                       </Text>
                     </View>
-                    <View style={{ 
-                      height: 6, 
-                      backgroundColor: '#E5E7EB', 
-                      borderRadius: 3, 
-                      overflow: 'hidden' 
+                    <View style={{
+                      height: 4,
+                      backgroundColor: '#E5E7EB',
+                      borderRadius: 2,
+                      overflow: 'hidden'
                     }}>
-                      <View style={{ 
-                        height: '100%', 
+                      <View style={{
+                        height: '100%',
                         backgroundColor: getAccuracyColor(topicAccuracy),
                         width: `${topicAccuracy}%`
                       }} />
@@ -168,24 +164,22 @@ export const PracticeResultsScreen: React.FC<PracticeResultsScreenProps> = ({ na
           )}
 
           {/* Question Review */}
-          <View style={{ 
-            backgroundColor: 'white', 
-            borderRadius: 16, 
+          <View style={{
+            backgroundColor: 'white',
+            borderRadius: 16,
             padding: 20,
-            marginBottom: 24 
+            marginBottom: 24
           }}>
             <Text style={{ fontSize: 18, fontWeight: '600', color: '#1F2937', marginBottom: 16 }}>
               Question Review
             </Text>
-            
             <View style={{ gap: 12 }}>
               {questions.slice(0, 5).map((question, index) => {
                 const attempt = attempts.find(a => a.questionId === question.id);
                 const isCorrect = attempt?.isCorrect || false;
-                
                 return (
-                  <View key={question.id} style={{ 
-                    flexDirection: 'row', 
+                  <View key={question.id} style={{
+                    flexDirection: 'row',
                     alignItems: 'center',
                     paddingVertical: 8
                   }}>
@@ -198,9 +192,9 @@ export const PracticeResultsScreen: React.FC<PracticeResultsScreenProps> = ({ na
                       alignItems: 'center',
                       marginRight: 12
                     }}>
-                      <Text style={{ 
-                        fontSize: 16, 
-                        color: isCorrect ? '#10B981' : '#EF4444' 
+                      <Text style={{
+                        fontSize: 16,
+                        color: isCorrect ? '#10B981' : '#EF4444'
                       }}>
                         {isCorrect ? '✓' : '✕'}
                       </Text>
@@ -216,7 +210,6 @@ export const PracticeResultsScreen: React.FC<PracticeResultsScreenProps> = ({ na
                   </View>
                 );
               })}
-              
               {questions.length > 5 && (
                 <TouchableOpacity style={{ paddingVertical: 8, alignItems: 'center' }}>
                   <Text style={{ fontSize: 14, color: '#3B82F6', fontWeight: '500' }}>
@@ -228,9 +221,9 @@ export const PracticeResultsScreen: React.FC<PracticeResultsScreenProps> = ({ na
           </View>
 
           {/* Recommendations */}
-          <View style={{ 
-            backgroundColor: '#F0F9FF', 
-            borderRadius: 16, 
+          <View style={{
+            backgroundColor: '#F0F9FF',
+            borderRadius: 16,
             padding: 20,
             marginBottom: 32,
             borderWidth: 1,
@@ -264,19 +257,17 @@ export const PracticeResultsScreen: React.FC<PracticeResultsScreenProps> = ({ na
   );
 };
 
-
-// Helper Components and Functions
 const StatCard: React.FC<{
   title: string;
   value: string;
   subtitle: string;
   icon: string;
 }> = ({ title, value, subtitle, icon }) => (
-  <View style={{ 
-    flex: 1, 
+  <View style={{
+    flex: 1,
     minWidth: '45%',
-    backgroundColor: 'white', 
-    borderRadius: 12, 
+    backgroundColor: 'white',
+    borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     shadowColor: '#000',
@@ -298,7 +289,6 @@ const StatCard: React.FC<{
 const getMaxStreak = (attempts: Array<{ isCorrect: boolean }>) => {
   let maxStreak = 0;
   let currentStreak = 0;
-  
   attempts.forEach(attempt => {
     if (attempt.isCorrect) {
       currentStreak++;
@@ -307,7 +297,6 @@ const getMaxStreak = (attempts: Array<{ isCorrect: boolean }>) => {
       currentStreak = 0;
     }
   });
-  
   return maxStreak;
 };
 
@@ -319,8 +308,8 @@ const getAccuracyColor = (accuracy: number) => {
 };
 
 const getRecommendation = (
-  accuracy: number, 
-  avgTime: number, 
+  accuracy: number,
+  avgTime: number,
   topicPerformance: Record<string, any>
 ) => {
   if (accuracy >= 85) {
