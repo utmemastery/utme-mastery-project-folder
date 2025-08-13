@@ -1,29 +1,37 @@
-// backend/src/services/flashcardService.ts
+import { PrismaClient, DifficultyLevel } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
 export interface Flashcard {
   id: number;
-  front: string;
-  back: string;
-  subject: string;
-  topic: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  prompt: string;
+  answer: string;
+  subjectId: number;
+  topicId: number;
+  difficulty?: DifficultyLevel;
   mediaUrl?: string;
   tags: string[];
-  createdBy: 'system' | 'user';
+  createdByUserId?: number;
+  subject?: { name: string }; // Added for frontend compatibility
+  topic?: { name: string };   // Added for frontend compatibility
 }
 
-export interface FlashcardAttempt {
+export interface FlashcardReview {
   id: number;
   flashcardId: number;
   userId: number;
-  response: 'again' | 'hard' | 'good' | 'easy';
-  timeSpent: number;
+  recallSuccess: boolean;
+  responseTimeMs?: number;
+  reviewDate: Date;
+  interval: number;
+  easeFactor: number;
+  nextReview?: Date;
   createdAt: Date;
+  response?: 'again' | 'hard' | 'good' | 'easy'; // for app logic, not in schema
 }
 
 export class FlashcardService {
   static async getFlashcardsForReview(userId: number, limit: number = 20) {
-    const prisma = new PrismaClient();
-    
     // Get user's subjects
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -32,70 +40,96 @@ export class FlashcardService {
 
     if (!user) throw new Error('User not found');
 
-    // Get flashcards due for review using spaced repetition algorithm
-    const flashcards = await prisma.$queryRaw`
-      SELECT 
-        f.*,
-        fa.response as last_response,
-        fa.created_at as last_review,
-        COALESCE(fa.interval, 1) as current_interval,
-        COALESCE(fa.ease_factor, 2.5) as ease_factor
-      FROM flashcards f
-      LEFT JOIN LATERAL (
-        SELECT * FROM flashcard_attempts fa2 
-        WHERE fa2.flashcard_id = f.id AND fa2.user_id = ${userId}
-        ORDER BY fa2.created_at DESC 
-        LIMIT 1
-      ) fa ON true
-      WHERE f.subject = ANY(${user.selectedSubjects})
-        AND (
-          fa.created_at IS NULL OR 
-          fa.created_at + INTERVAL '1 day' * COALESCE(fa.interval, 1) <= NOW()
-        )
-      ORDER BY 
-        CASE WHEN fa.created_at IS NULL THEN 0 ELSE 1 END,
-        fa.created_at ASC NULLS FIRST
-      LIMIT ${limit}
-    `;
+    // Get subject IDs
+    const subjects = await prisma.subject.findMany({
+      where: { name: { in: user.selectedSubjects } },
+      select: { id: true }
+    });
+    const subjectIds = subjects.map(s => s.id);
 
-    return flashcards;
+    // Get flashcards due for review using spaced repetition algorithm
+    const flashcards = await prisma.flashcard.findMany({
+      where: {
+        subjectId: { in: subjectIds }
+      },
+      include: {
+        FlashcardReview: {
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        },
+        subject: { select: { name: true } }, // Include subject name
+        topic: { select: { name: true } }    // Include topic name
+      },
+      take: limit
+    });
+
+    // Filter for due flashcards (spaced repetition)
+    const now = new Date();
+    const dueFlashcards = flashcards.filter(f => {
+      const lastReview = f.FlashcardReview[0];
+      if (!lastReview) return true;
+      if (!lastReview.nextReview) return true;
+      return lastReview.nextReview <= now;
+    });
+
+    // Calculate review stats
+    const reviews = await prisma.flashcardReview.findMany({
+      where: { userId },
+      include: { flashcard: true }
+    });
+    const reviewStats = {
+      newCards: flashcards.filter(f => !f.FlashcardReview.length).length,
+      masteredCards: reviews.filter(r => r.easeFactor > 2.5 && r.recallSuccess).length,
+      learningCards: reviews.filter(r => r.easeFactor <= 2.5 || !r.recallSuccess).length,
+      recentSessions: [] // Placeholder; implement session grouping if needed
+    };
+
+    return { flashcards: dueFlashcards, reviewStats };
   }
 
-  static async submitFlashcardAttempt(attemptData: {
+  static async submitFlashcardReview(attemptData: {
     userId: number;
     flashcardId: number;
     response: 'again' | 'hard' | 'good' | 'easy';
     timeSpent: number;
   }) {
-    const prisma = new PrismaClient();
     const { userId, flashcardId, response, timeSpent } = attemptData;
 
-    // Get last attempt to calculate new interval
-    const lastAttempt = await prisma.flashcardAttempt.findFirst({
+    // Get last review to calculate new interval
+    const lastReview = await prisma.flashcardReview.findFirst({
       where: { userId, flashcardId },
       orderBy: { createdAt: 'desc' }
     });
 
     // Calculate new interval and ease factor using SuperMemo algorithm
     const { newInterval, newEaseFactor } = this.calculateSpacedRepetition(
-      lastAttempt?.interval || 1,
-      lastAttempt?.easeFactor || 2.5,
+      lastReview?.interval || 1,
+      lastReview?.easeFactor || 2.5,
       response
     );
 
-    // Create new attempt
-    const attempt = await prisma.flashcardAttempt.create({
+    // Determine recallSuccess for schema
+    const recallSuccess = response === 'good' || response === 'easy';
+
+    // Calculate next review date
+    const nextReview = new Date();
+    nextReview.setDate(nextReview.getDate() + newInterval);
+
+    // Create new review
+    const review = await prisma.flashcardReview.create({
       data: {
         userId,
         flashcardId,
-        response,
-        timeSpent,
+        recallSuccess,
+        responseTimeMs: timeSpent,
         interval: newInterval,
-        easeFactor: newEaseFactor
+        easeFactor: newEaseFactor,
+        nextReview
       }
     });
 
-    return attempt;
+    return review;
   }
 
   private static calculateSpacedRepetition(
@@ -128,19 +162,29 @@ export class FlashcardService {
   }
 
   static async createCustomFlashcard(userId: number, cardData: {
-    front: string;
-    back: string;
+    prompt: string;
+    answer: string;
     subject: string;
     topic: string;
     tags?: string[];
+    difficulty?: DifficultyLevel;
+    mediaUrl?: string;
   }) {
-    const prisma = new PrismaClient();
-    
+    // Find subject and topic IDs
+    const subject = await prisma.subject.findUnique({ where: { name: cardData.subject } });
+    const topic = await prisma.topic.findUnique({ where: { name: cardData.topic } });
+
+    if (!subject || !topic) throw new Error('Invalid subject or topic');
+
     const flashcard = await prisma.flashcard.create({
       data: {
-        ...cardData,
+        prompt: cardData.prompt,
+        answer: cardData.answer,
+        subjectId: subject.id,
+        topicId: topic.id,
         tags: cardData.tags || [],
-        createdBy: 'user',
+        difficulty: cardData.difficulty,
+        mediaUrl: cardData.mediaUrl,
         createdByUserId: userId
       }
     });

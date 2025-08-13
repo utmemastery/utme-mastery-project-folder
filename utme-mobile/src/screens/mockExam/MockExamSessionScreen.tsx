@@ -1,8 +1,7 @@
-// mobile/src/screens/mockExam/MockExamSessionScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, BackHandler } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, BackHandler, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMockExamStore } from '../../stores/mockExamStore';
+import { useMockExamStore, MockExam, MockExamQuestion } from '../../stores/mockExamStore';
 
 interface MockExamSessionScreenProps {
   navigation: any;
@@ -18,14 +17,15 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
     nextQuestion,
     previousQuestion,
     endExam,
-    isLoading
+    isLoading,
+    error
   } = useMockExamStore();
 
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [showConfirmExit, setShowConfirmExit] = useState(false);
+  const [showLowTimeWarning, setShowLowTimeWarning] = useState(false);
 
-  const currentQuestion = currentExam?.questions[currentQuestionIndex];
-  const totalQuestions = currentExam?.questions.length || 0;
+  const currentQuestion: MockExamQuestion | undefined = currentExam?.questions[currentQuestionIndex];
+  const totalQuestions: number = currentExam?.questions.length || 0;
 
   useEffect(() => {
     // Handle hardware back button
@@ -41,9 +41,14 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
     // Load existing answer for this question
     if (currentQuestion) {
       const existingAnswer = answers[currentQuestion.id];
-      setSelectedAnswer(existingAnswer?.selectedAnswer ?? null);
+      setSelectedAnswer(existingAnswer?.selectedOptionId ?? null);
     }
   }, [currentQuestionIndex, currentQuestion]);
+
+  useEffect(() => {
+    // Show low time warning when time is less than 5 minutes
+    setShowLowTimeWarning(timeRemaining <= 300 && timeRemaining > 0);
+  }, [timeRemaining]);
 
   const handleExitAttempt = () => {
     Alert.alert(
@@ -61,7 +66,11 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
   };
 
   const handleAnswerSelect = (answerIndex: number) => {
-    setSelectedAnswer(answerIndex);
+    if (currentQuestion) {
+      // Map option index to Option.id
+      const optionId = currentQuestion.optionIds ? currentQuestion.optionIds[answerIndex] : answerIndex;
+      setSelectedAnswer(optionId);
+    }
   };
 
   const handleNextQuestion = () => {
@@ -72,7 +81,6 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
     if (currentQuestionIndex < totalQuestions - 1) {
       nextQuestion();
     } else {
-      // Exam completed
       handleFinishExam();
     }
   };
@@ -118,11 +126,37 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
     return '#10B981'; // Green
   };
 
-  if (!currentExam || !currentQuestion) {
+  if (isLoading || !currentExam || !currentQuestion) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, color: '#6B7280' }}>Loading exam...</Text>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={{ fontSize: 18, color: '#6B7280', marginTop: 8 }}>
+            Loading exam...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ fontSize: 16, color: '#EF4444', textAlign: 'center' }}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={{
+              backgroundColor: '#3B82F6',
+              borderRadius: 8,
+              padding: 12,
+              marginTop: 16
+            }}
+          >
+            <Text style={{ color: 'white', fontWeight: '500' }}>Return to Home</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -134,6 +168,22 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <View style={{ flex: 1 }}>
+        {/* Low Time Warning */}
+        {showLowTimeWarning && (
+          <View style={{
+            backgroundColor: '#FEF3C7',
+            padding: 12,
+            borderRadius: 8,
+            margin: 20,
+            borderLeftWidth: 4,
+            borderLeftColor: '#F59E0B'
+          }}>
+            <Text style={{ fontSize: 14, color: '#92400E' }}>
+              ⏰ Less than 5 minutes remaining!
+            </Text>
+          </View>
+        )}
+
         {/* Header */}
         <View style={{ 
           flexDirection: 'row', 
@@ -145,7 +195,9 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
           borderBottomColor: '#E5E7EB'
         }}>
           <TouchableOpacity onPress={handleExitAttempt}>
-            <Text style={{ fontSize: 16, color: '#EF4444', fontWeight: '500' }}>Exit</Text>
+            <Text style={{ fontSize: 16, color: '#EF4444', fontWeight: '500' }}>
+              Exit
+            </Text>
           </TouchableOpacity>
           
           <View style={{ alignItems: 'center' }}>
@@ -165,13 +217,14 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
             }}>
               {formatTime(timeRemaining)}
             </Text>
-            <Text style={{ fontSize: 10, color: '#6B7280' }}>Time left</Text>
+            <Text style={{ fontSize: 10, color: '#6B7280' }}>
+              Time left
+            </Text>
           </View>
         </View>
 
         {/* Progress Indicators */}
         <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
-          {/* Progress Bar */}
           <View style={{ 
             height: 4, 
             backgroundColor: '#E5E7EB', 
@@ -193,7 +246,6 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
 
         {/* Question Content */}
         <ScrollView style={{ flex: 1, paddingHorizontal: 20 }}>
-          {/* Question */}
           <View style={{ 
             backgroundColor: '#F9FAFB', 
             padding: 20, 
@@ -213,7 +265,7 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
           {/* Answer Options */}
           <View style={{ gap: 12, marginBottom: 24 }}>
             {currentQuestion.options.map((option, index) => {
-              const isSelected = selectedAnswer === index;
+              const isSelected = selectedAnswer === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index);
               const existingAnswer = answers[currentQuestion.id];
               const wasAnswered = existingAnswer !== undefined;
               
@@ -222,9 +274,9 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
                   key={index}
                   onPress={() => handleAnswerSelect(index)}
                   style={{
-                    backgroundColor: isSelected ? '#EFF6FF' : wasAnswered && existingAnswer.selectedAnswer === index ? '#F0FDF4' : 'white',
+                    backgroundColor: isSelected ? '#EFF6FF' : wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index) ? '#F0FDF4' : 'white',
                     borderWidth: 2,
-                    borderColor: isSelected ? '#3B82F6' : wasAnswered && existingAnswer.selectedAnswer === index ? '#10B981' : '#E5E7EB',
+                    borderColor: isSelected ? '#3B82F6' : wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index) ? '#10B981' : '#E5E7EB',
                     borderRadius: 12,
                     padding: 16,
                     flexDirection: 'row',
@@ -236,13 +288,13 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
                     height: 24,
                     borderRadius: 12,
                     borderWidth: 2,
-                    borderColor: isSelected ? '#3B82F6' : wasAnswered && existingAnswer.selectedAnswer === index ? '#10B981' : '#D1D5DB',
-                    backgroundColor: isSelected ? '#3B82F6' : wasAnswered && existingAnswer.selectedAnswer === index ? '#10B981' : 'transparent',
+                    borderColor: isSelected ? '#3B82F6' : wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index) ? '#10B981' : '#D1D5DB',
+                    backgroundColor: isSelected ? '#3B82F6' : wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index) ? '#10B981' : 'transparent',
                     marginRight: 12,
                     justifyContent: 'center',
                     alignItems: 'center'
                   }}>
-                    {(isSelected || (wasAnswered && existingAnswer.selectedAnswer === index)) && (
+                    {(isSelected || (wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index))) && (
                       <Text style={{ 
                         color: 'white', 
                         fontSize: 12, 
@@ -254,7 +306,7 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
                   </View>
                   <Text style={{ 
                     fontSize: 16, 
-                    color: isSelected ? '#1E40AF' : wasAnswered && existingAnswer.selectedAnswer === index ? '#065F46' : '#374151',
+                    color: isSelected ? '#1E40AF' : wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index) ? '#065F46' : '#374151',
                     flex: 1
                   }}>
                     {option}

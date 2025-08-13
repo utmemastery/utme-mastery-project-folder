@@ -1,4 +1,3 @@
-// mobile/src/stores/profileStore.ts
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
@@ -12,8 +11,8 @@ interface ProfileData {
   selectedSubjects: string[];
   goalScore: number;
   preferredStudyTime?: string;
-  studyReminders: boolean;
-  examYear: string;
+  studyReminders?: boolean;
+  examYear?: string;
   profileImage?: string;
   state?: string;
   school?: string;
@@ -31,12 +30,13 @@ interface ProfileStats {
 }
 
 interface ProfileStore {
-  profile: ProfileData | null;
+  profile++
+
+System: : ProfileData | null;
   stats: ProfileStats | null;
   isLoading: boolean;
   error: string | null;
-  
-  // Actions
+
   fetchProfile: () => Promise<void>;
   updateProfile: (data: Partial<ProfileData>) => Promise<void>;
   updateProfileImage: (imageUri: string) => Promise<void>;
@@ -45,7 +45,7 @@ interface ProfileStore {
   updateGoalScore: (score: number) => Promise<void>;
   updateStudyPreferences: (preferences: { 
     preferredStudyTime?: string;
-    studyReminders: boolean;
+    studyReminders?: boolean;
   }) => Promise<void>;
   deleteAccount: () => Promise<void>;
   exportData: () => Promise<any>;
@@ -63,18 +63,22 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       set({ isLoading: true, error: null });
       
       const response = await api.get('/profile');
-      const profileData = response.data.profile;
+      const profileData = {
+        ...response.data.profile,
+        phone: response.data.profile.phoneNumber,
+        profileImage: response.data.profile.avatarUrl,
+        dateOfBirth: response.data.profile.dateOfBirth ? new Date(response.data.profile.dateOfBirth).toISOString() : undefined,
+        preferredStudyTime: response.data.profile.preferredStudyTime ? new Date(response.data.profile.preferredStudyTime).toISOString() : undefined
+      };
       
       set({ 
         profile: profileData,
         isLoading: false 
       });
 
-      // Cache profile data locally
       await AsyncStorage.setItem('cached_profile', JSON.stringify(profileData));
       
     } catch (error: any) {
-      // Try to load cached data if API fails
       try {
         const cachedProfile = await AsyncStorage.getItem('cached_profile');
         if (cachedProfile) {
@@ -90,7 +94,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       }
 
       set({ 
-        error: error.response?.data?.message || 'Failed to fetch profile',
+        error: error.response?.data?.error || 'Failed to fetch profile',
         isLoading: false 
       });
     }
@@ -100,20 +104,31 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      const response = await api.put('/profile', data);
-      const updatedProfile = response.data.profile;
+      const updateData = {
+        ...data,
+        phoneNumber: data.phone,
+        avatarUrl: data.profileImage
+      };
+      
+      const response = await api.put('/profile', updateData);
+      const updatedProfile = {
+        ...response.data.profile,
+        phone: response.data.profile.phoneNumber,
+        profileImage: response.data.profile.avatarUrl,
+        dateOfBirth: response.data.profile.dateOfBirth ? new Date(response.data.profile.dateOfBirth).toISOString() : undefined,
+        preferredStudyTime: response.data.profile.preferredStudyTime ? new Date(response.data.profile.preferredStudyTime).toISOString() : undefined
+      };
       
       set({ 
         profile: updatedProfile,
         isLoading: false 
       });
 
-      // Update cached data
       await AsyncStorage.setItem('cached_profile', JSON.stringify(updatedProfile));
       
     } catch (error: any) {
       set({ 
-        error: error.response?.data?.message || 'Failed to update profile',
+        error: error.response?.data?.error || 'Failed to update profile',
         isLoading: false 
       });
       throw error;
@@ -154,7 +169,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       
     } catch (error: any) {
       set({ 
-        error: error.response?.data?.message || 'Failed to update profile image',
+        error: error.response?.data?.error || 'Failed to update profile image',
         isLoading: false 
       });
       throw error;
@@ -163,7 +178,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
 
   fetchProfileStats: async () => {
     try {
-      const response = await api.get('/profile/stats');
+      const response = await api.get('/analytics');
       set({ stats: response.data.stats });
       
     } catch (error: any) {
@@ -176,7 +191,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      await api.put('/profile/subjects', { selectedSubjects: subjects });
+      const response = await api.put('/profile', { selectedSubjects: subjects });
       
       const currentProfile = get().profile;
       if (currentProfile) {
@@ -195,7 +210,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       
     } catch (error: any) {
       set({ 
-        error: error.response?.data?.message || 'Failed to update subjects',
+        error: error.response?.data?.error || 'Failed to update subjects',
         isLoading: false 
       });
       throw error;
@@ -206,7 +221,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      await api.put('/profile/goal', { goalScore: score });
+      await api.put('/goal', { goalScore: score });
       
       const currentProfile = get().profile;
       if (currentProfile) {
@@ -225,7 +240,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       
     } catch (error: any) {
       set({ 
-        error: error.response?.data?.message || 'Failed to update goal score',
+        error: error.response?.data?.error || 'Failed to update goal score',
         isLoading: false 
       });
       throw error;
@@ -234,18 +249,19 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
 
   updateStudyPreferences: async (preferences: { 
     preferredStudyTime?: string;
-    studyReminders: boolean;
+    studyReminders?: boolean;
   }) => {
     try {
       set({ isLoading: true, error: null });
       
-      await api.put('/profile/preferences', preferences);
+      const response = await api.put('/profile', preferences);
       
       const currentProfile = get().profile;
       if (currentProfile) {
         const updatedProfile = {
           ...currentProfile,
-          ...preferences
+          ...preferences,
+          preferredStudyTime: preferences.preferredStudyTime ? new Date(preferences.preferredStudyTime).toISOString() : currentProfile.preferredStudyTime
         };
         
         set({ 
@@ -258,7 +274,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       
     } catch (error: any) {
       set({ 
-        error: error.response?.data?.message || 'Failed to update preferences',
+        error: error.response?.data?.error || 'Failed to update preferences',
         isLoading: false 
       });
       throw error;
@@ -271,7 +287,6 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       
       await api.delete('/profile');
       
-      // Clear all stored data
       await AsyncStorage.multiRemove([
         'auth_token',
         'refresh_token',
@@ -287,7 +302,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       
     } catch (error: any) {
       set({ 
-        error: error.response?.data?.message || 'Failed to delete account',
+        error: error.response?.data?.error || 'Failed to delete account',
         isLoading: false 
       });
       throw error;
@@ -300,7 +315,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       return response.data;
       
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Failed to export data');
+      throw new Error(error.response?.data?.error || 'Failed to export data');
     }
   },
 

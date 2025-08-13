@@ -1,17 +1,16 @@
-// mobile/src/stores/studyPlanStore.ts
 import { create } from 'zustand';
 import api from '../services/api';
 
 interface StudyTask {
-  id: string;
-  type: string;
+  id: number;
+  type: 'PRACTICE' | 'FLASHCARDS' | 'MOCK_EXAM' | 'WEAK_TOPIC' | 'REVIEW';
   title: string;
   description: string;
   subject?: string;
   topic?: string;
   estimatedTime: number;
-  priority: string;
-  status: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  status: 'PENDING' | 'COMPLETED';
   dueDate: Date;
 }
 
@@ -28,9 +27,9 @@ interface StudyPlanState {
   isLoading: boolean;
   error: string | null;
 
-  // Actions
   fetchStudyPlan: () => Promise<void>;
-  updateTaskStatus: (taskId: string, status: string) => Promise<void>;
+  updateTaskStatus: (taskId: number, status: 'PENDING' | 'COMPLETED') => Promise<void>;
+  regenerateStudyPlan: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -46,7 +45,15 @@ export const useStudyPlanStore = create<StudyPlanState>((set, get) => ({
     try {
       const response = await api.get('/user/study-plan');
       set({ 
-        studyPlan: response.data.studyPlan,
+        studyPlan: {
+          ...response.data.studyPlan,
+          date: new Date(response.data.studyPlan.date),
+          tasks: response.data.studyPlan.tasks.map((task: any) => ({
+            ...task,
+            id: Number(task.id),
+            dueDate: new Date(task.dueDate)
+          }))
+        },
         isLoading: false 
       });
     } catch (error: any) {
@@ -59,15 +66,17 @@ export const useStudyPlanStore = create<StudyPlanState>((set, get) => ({
 
   updateTaskStatus: async (taskId, status) => {
     try {
-      await api.put('/user/study-plan/task', { taskId, status });
+      await api.put('/user/study-plan/task', { taskId: Number(taskId), status });
       
-      // Update local state
       set(state => ({
         studyPlan: state.studyPlan ? {
           ...state.studyPlan,
           tasks: state.studyPlan.tasks.map(task => 
             task.id === taskId ? { ...task, status } : task
-          )
+          ),
+          completionRate: state.studyPlan.tasks.length > 0
+            ? (state.studyPlan.tasks.filter(t => t.status === 'COMPLETED').length / state.studyPlan.tasks.length) * 100
+            : 0
         } : null
       }));
     } catch (error: any) {
@@ -75,6 +84,29 @@ export const useStudyPlanStore = create<StudyPlanState>((set, get) => ({
     }
   },
 
+  regenerateStudyPlan: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      const response = await api.put('/user/study-plan/regenerate');
+      set({ 
+        studyPlan: {
+          ...response.data.studyPlan,
+          date: new Date(response.data.studyPlan.date),
+          tasks: response.data.studyPlan.tasks.map((task: any) => ({
+            ...task,
+            id: Number(task.id),
+            dueDate: new Date(task.dueDate)
+          }))
+        },
+        isLoading: false 
+      });
+    } catch (error: any) {
+      set({ 
+        error: error.response?.constexpr: true,
+        isLoading: false 
+      });
+    }
+  },
+
   clearError: () => set({ error: null })
 }));
-

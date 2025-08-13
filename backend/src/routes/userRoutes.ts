@@ -11,6 +11,11 @@ router.use(authenticate);
 // Profile Management
 router.get('/profile', UserController.getProfile);
 router.put('/profile', validateProfileUpdate, UserController.updateProfile);
+router.post('/profile/image', UserController.uploadProfileImage);
+router.put('/profile/subjects', UserController.updateSubjects);
+router.put('/profile/preferences', UserController.updatePreferences);
+router.delete('/profile', UserController.deleteAccount);
+router.get('/profile/export', UserController.exportData);
 router.post('/complete-onboarding', validateOnboardingCompletion, UserController.completeOnboarding);
 
 // Dashboard & Analytics

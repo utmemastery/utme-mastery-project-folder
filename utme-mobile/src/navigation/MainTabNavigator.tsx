@@ -4,9 +4,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text } from 'react-native';
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
 import { PracticeNavigator } from './PracticeNavigator';
-import { StudyPlanScreen } from '../screens/study/StudyPlanScreen';
 import { FlashcardNavigator } from './FlashcardNavigator';
 import { MockExamNavigator } from './MockExamNavigator';
+import { ProfileScreen } from '../screens/profile/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -74,15 +74,6 @@ export const MainTabNavigator = () => {
         }}
       />
       <Tab.Screen 
-        name="StudyPlan" 
-        component={StudyPlanScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} icon="📅" label="Study Plan" name="StudyPlan" />
-          )
-        }}
-      />
-      <Tab.Screen 
         name="Flashcards" 
         component={FlashcardNavigator}
         options={{
@@ -97,6 +88,15 @@ export const MainTabNavigator = () => {
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIcon focused={focused} icon="📋" label="Mock Exam" name="MockExam" />
+          )
+        }}
+      />
+      <Tab.Screen 
+        name="Profile" 
+        component={ProfileScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} icon="👤" label="Profile" name="Profile" />
           )
         }}
       />

@@ -1,6 +1,6 @@
 // mobile/src/screens/flashcards/FlashcardReviewScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFlashcardStore } from '../../stores/flashcardStore';
 
@@ -65,6 +65,7 @@ export const FlashcardReviewScreen: React.FC<FlashcardReviewScreenProps> = ({ na
         }
       });
     } catch (error) {
+      Alert.alert('Error', error.response?.data?.error || 'Failed to submit response. Please try again.');
       console.error('Failed to submit flashcard attempt:', error);
     }
   };
@@ -109,7 +110,7 @@ export const FlashcardReviewScreen: React.FC<FlashcardReviewScreenProps> = ({ na
               {currentCardIndex + 1} of {flashcards.length}
             </Text>
             <Text style={{ fontSize: 12, color: '#6B7280' }}>
-              {currentCard.subject} • {currentCard.topic}
+              {currentCard.subjectId} • {currentCard.topicId} {/* Placeholder until mapped to names */}
             </Text>
           </View>
           
@@ -163,7 +164,7 @@ export const FlashcardReviewScreen: React.FC<FlashcardReviewScreenProps> = ({ na
                     textAlign: 'center',
                     lineHeight: 28
                   }}>
-                    {currentCard.front}
+                    {currentCard.prompt}
                   </Text>
                   
                   {!isFlipped && (
@@ -200,7 +201,7 @@ export const FlashcardReviewScreen: React.FC<FlashcardReviewScreenProps> = ({ na
                     lineHeight: 26,
                     marginBottom: 16
                   }}>
-                    {currentCard.back}
+                    {currentCard.answer}
                   </Text>
                   
                   {currentCard.tags && currentCard.tags.length > 0 && (
@@ -305,4 +306,3 @@ const ResponseButton: React.FC<ResponseButtonProps> = ({ title, subtitle, color,
     </Text>
   </TouchableOpacity>
 );
-

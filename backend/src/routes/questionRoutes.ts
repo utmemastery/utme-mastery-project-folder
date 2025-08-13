@@ -9,6 +9,7 @@ router.use(authenticate); // All routes require authentication
 
 router.get('/adaptive', QuestionController.getAdaptiveQuestions);
 router.post('/diagnostic', QuestionController.getDiagnosticQuestions);
+router.get('/diagnostic/:subject', QuestionController.getDiagnosticQuestionsForSubject);
 router.post('/submit', QuestionController.submitAnswer);
 
 export default router;

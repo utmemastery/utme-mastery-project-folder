@@ -1,44 +1,101 @@
-// backend/src/services/studyPlanService.ts
-import { PrismaClient } from '@prisma/client';
 import { AnalyticsService } from './analyticsService';
+import { PrismaClient, StudyTaskType, StudyTaskStatus, StudyTaskPriority } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+const COURSE_SUBJECT_REQUIREMENTS = {
+  medicine: ['english', 'mathematics', 'physics', 'chemistry', 'biology'],
+  engineering: ['english', 'mathematics', 'physics', 'chemistry'],
+  law: ['english', 'mathematics', 'literature', 'government'],
+  pharmacy: ['english', 'mathematics', 'physics', 'chemistry', 'biology'],
+  computer_science: ['english', 'mathematics', 'physics', 'chemistry'],
+  accounting: ['english', 'mathematics', 'economics', 'government'],
+  business_admin: ['english', 'mathematics', 'economics', 'government'],
+  economics: ['english', 'mathematics', 'economics', 'government'],
+  psychology: ['english', 'mathematics', 'biology', 'government'],
+  mass_comm: ['english', 'mathematics', 'literature', 'government']
+};
+
 export interface StudyTask {
-  id: string;
-  type: 'practice' | 'review' | 'flashcards' | 'mock_exam' | 'weak_topic';
+  id: number;
+  type: StudyTaskType;
   title: string;
   description: string;
   subject?: string;
-  topic?: string;
-  estimatedTime: number; // in minutes
-  priority: 'high' | 'medium' | 'low';
-  status: 'pending' | 'in_progress' | 'completed';
+  topic?: string; // Added to match frontend
+  topicId?: number;
+  estimatedTime?: number;
+  priority?: StudyTaskPriority;
+  status: StudyTaskStatus;
   dueDate: Date;
   metadata?: any;
+  completed: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface StudyPlan {
-  date: Date;
-  totalEstimatedTime: number;
+  id: number;
+  userId: number;
+  title: string;
+  description?: string;
+  startDate: Date;
+  endDate?: Date;
+  aiGenerated: boolean;
+  date?: Date;
   tasks: StudyTask[];
-  completionRate: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+  totalEstimatedTime: number; // Added for frontend
+  completionRate: number; // Added for frontend
 }
 
 export class StudyPlanService {
   static async generateStudyPlan(userId: number): Promise<StudyPlan> {
+    // Validate userId
+    if (!Number.isInteger(userId) || userId <= 0) {
+      throw new Error('Invalid user ID');
+    }
+
     // Get user data
     const user = await prisma.user.findUnique({
-      where: { id: userId }
+      where: { id: userId },
+      select: {
+        id: true,
+        selectedSubjects: true,
+        aspiringCourse: true,
+        goalScore: true,
+        learningStyle: true,
+        diagnosticResults: true
+      }
     });
 
     if (!user) throw new Error('User not found');
+
+    // Validate course-subject compatibility
+    if (user.aspiringCourse && COURSE_SUBJECT_REQUIREMENTS[user.aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS]) {
+      const requiredSubjects = COURSE_SUBJECT_REQUIREMENTS[user.aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS];
+      const missingSubjects = requiredSubjects.filter(subject => !user.selectedSubjects.includes(subject));
+      if (missingSubjects.length > 0) {
+        throw new Error(`Missing required subjects for ${user.aspiringCourse}: ${missingSubjects.join(', ')}`);
+      }
+    }
 
     // Get user analytics and weak topics
     const [analytics, weakTopics] = await Promise.all([
       AnalyticsService.getUserAnalytics(userId),
       AnalyticsService.getWeakTopics(userId, 5)
     ]);
+
+    // Prioritize subjects based on diagnosticResults if available
+    let prioritizedSubjects = user.selectedSubjects;
+    if (user.diagnosticResults && Array.isArray(user.diagnosticResults)) {
+      prioritizedSubjects = user.diagnosticResults
+        .sort((a, b) => a.proficiency - b.proficiency)
+        .map((r: { subject: string; proficiency: number }) => r.subject)
+        .filter(subject => user.selectedSubjects.includes(subject));
+      prioritizedSubjects = [...new Set([...prioritizedSubjects, ...user.selectedSubjects])];
+    }
 
     // Generate weekly study plan
     const weekPlan: StudyPlan[] = [];
@@ -48,25 +105,35 @@ export class StudyPlanService {
       date.setDate(date.getDate() + i);
       date.setHours(0, 0, 0, 0);
 
-      const dayPlan = await this.generateDayPlan(userId, date, analytics, weakTopics, user);
+      const dayPlan = await this.generateDayPlan(userId, date, analytics, weakTopics, user, prioritizedSubjects);
       weekPlan.push(dayPlan);
     }
 
     return weekPlan[0]; // Return today's plan
   }
 
+  static async regenerateStudyPlan(userId: number): Promise<StudyPlan> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    await prisma.studyPlan.deleteMany({ where: { userId, date: today } });
+    return this.generateStudyPlan(userId);
+  }
+
   static async getTodaysPlan(userId: number): Promise<StudyPlan> {
+    if (!Number.isInteger(userId) || userId <= 0) {
+      throw new Error('Invalid user ID');
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Check if plan already exists for today
     const existingPlan = await prisma.studyPlan.findFirst({
       where: {
         userId,
         date: today
       },
       include: {
-        tasks: true
+        tasks: { include: { topic: true } } // Include topic for name
       }
     });
 
@@ -74,7 +141,6 @@ export class StudyPlanService {
       return this.formatStudyPlan(existingPlan);
     }
 
-    // Generate new plan
     return this.generateStudyPlan(userId);
   }
 
@@ -83,115 +149,172 @@ export class StudyPlanService {
     date: Date,
     analytics: any,
     weakTopics: any[],
-    user: any
+    user: any,
+    prioritizedSubjects: string[]
   ): Promise<StudyPlan> {
     const tasks: StudyTask[] = [];
     let totalTime = 0;
 
-    // 1. Daily quiz task (always included)
+    if (user.aspiringCourse && COURSE_SUBJECT_REQUIREMENTS[user.aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS]) {
+      const requiredSubjects = COURSE_SUBJECT_REQUIREMENTS[user.aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS];
+      const invalidSubjects = prioritizedSubjects.filter(subject => !requiredSubjects.includes(subject));
+      if (invalidSubjects.length > 0) {
+        throw new Error(`Invalid subjects for ${user.aspiringCourse}: ${invalidSubjects.join(', ')}`);
+      }
+    }
+
     tasks.push({
-      id: `daily_quiz_${date.getTime()}`,
-      type: 'practice',
+      id: 0,
+      type: StudyTaskType.PRACTICE,
       title: 'Daily Quiz',
       description: 'Complete 10 mixed questions from your subjects',
       estimatedTime: 15,
-      priority: 'high',
-      status: 'pending',
+      priority: StudyTaskPriority.HIGH,
+      status: StudyTaskStatus.PENDING,
       dueDate: date,
-      metadata: { questionCount: 10, mixed: true }
+      metadata: { questionCount: 10, mixed: true },
+      completed: false
     });
     totalTime += 15;
 
-    // 2. Weak topic focus (if weak topics exist)
-    if (weakTopics.length > 0) {
-      const weakTopic = weakTopics[0]; // Focus on weakest topic
-      tasks.push({
-        id: `weak_topic_${date.getTime()}`,
-        type: 'weak_topic',
-        title: `Focus on ${weakTopic.topic}`,
-        description: `Practice questions in ${weakTopic.topic} (${weakTopic.subject})`,
-        subject: weakTopic.subject,
-        topic: weakTopic.topic,
-        estimatedTime: 25,
-        priority: 'high',
-        status: 'pending',
-        dueDate: date,
-        metadata: { accuracy: weakTopic.accuracy }
-      });
-      totalTime += 25;
-    }
+    const weakTopicTasks = await Promise.all(
+      weakTopics
+        .filter((wt: any) => prioritizedSubjects.includes(wt.subject))
+        .slice(0, 3)
+        .map(async (topic: any, index: number) => {
+          const topicData = await prisma.topic.findUnique({ where: { id: topic.topicId } });
+          const taskType = user.learningStyle === 'visual' ? StudyTaskType.PRACTICE : StudyTaskType.REVIEW;
+          return {
+            id: 0,
+            type: taskType,
+            title: `Practice ${topic.topic}`,
+            description: `Focus on ${topic.topic} in ${topic.subject}`,
+            subject: topic.subject,
+            topic: topicData?.name,
+            topicId: topic.topicId,
+            estimatedTime: 20,
+            priority: StudyTaskPriority.MEDIUM,
+            status: StudyTaskStatus.PENDING,
+            dueDate: date,
+            metadata: { topicId: topic.topicId },
+            completed: false
+          };
+        })
+    );
 
-    // 3. Flashcard review (spaced repetition)
-    tasks.push({
-      id: `flashcards_${date.getTime()}`,
-      type: 'flashcards',
-      title: 'Flashcard Review',
-      description: 'Review flashcards using spaced repetition',
-      estimatedTime: 20,
-      priority: 'medium',
-      status: 'pending',
-      dueDate: date,
-      metadata: { reviewType: 'spaced_repetition' }
+    tasks.push(...weakTopicTasks);
+    totalTime += weakTopicTasks.reduce((sum, task) => sum + (task.estimatedTime || 0), 0);
+
+    const studyPlan = await prisma.studyPlan.create({
+      data: {
+        userId,
+        title: 'Daily Study Plan',
+        description: 'Auto-generated daily study plan',
+        startDate: date,
+        endDate: date,
+        aiGenerated: true,
+        date,
+        tasks: {
+          create: tasks.map(task => ({
+            type: task.type,
+            title: task.title,
+            description: task.description,
+            subject: task.subject,
+            topicId: task.topicId,
+            estimatedTime: task.estimatedTime,
+            priority: task.priority,
+            status: task.status,
+            dueDate: task.dueDate,
+            metadata: task.metadata,
+            completed: task.completed
+          }))
+        }
+      },
+      include: { tasks: { include: { topic: true } } }
     });
-    totalTime += 20;
 
-    // 4. Subject-specific practice (rotate through subjects)
-    const dayOfWeek = date.getDay();
-    const selectedSubjects = user.selectedSubjects || [];
-    if (selectedSubjects.length > 0) {
-      const subjectIndex = dayOfWeek % selectedSubjects.length;
-      const todaySubject = selectedSubjects[subjectIndex];
-      
-      tasks.push({
-        id: `subject_practice_${date.getTime()}`,
-        type: 'practice',
-        title: `${todaySubject.charAt(0).toUpperCase() + todaySubject.slice(1)} Practice`,
-        description: `Focused practice session for ${todaySubject}`,
-        subject: todaySubject,
-        estimatedTime: 30,
-        priority: 'medium',
-        status: 'pending',
-        dueDate: date,
-        metadata: { focusSubject: todaySubject }
-      });
-      totalTime += 30;
-    }
-
-    // 5. Mock exam (once per week)
-    if (date.getDay() === 0) { // Sunday
-      tasks.push({
-        id: `mock_exam_${date.getTime()}`,
-        type: 'mock_exam',
-        title: 'Weekly Mock Exam',
-        description: 'Complete a full UTME simulation',
-        estimatedTime: 120,
-        priority: 'high',
-        status: 'pending',
-        dueDate: date,
-        metadata: { examType: 'weekly_mock' }
-      });
-      totalTime += 120;
-    }
-
-    return {
-      date,
-      totalEstimatedTime: totalTime,
-      tasks,
-      completionRate: 0
-    };
+    return this.formatStudyPlan(studyPlan);
   }
 
-  static async updateTaskStatus(
+  static async generateInitialStudyPlan(
     userId: number,
-    taskId: string,
-    status: 'pending' | 'in_progress' | 'completed',
-    timeSpent?: number
-  ) {
+    selectedSubjects: string[],
+    aspiringCourse: string,
+    goalScore: number,
+    learningStyle: string
+  ): Promise<StudyPlan> {
+    if (!Number.isInteger(userId) || userId <= 0) {
+      throw new Error('Invalid user ID');
+    }
+    if (!Array.isArray(selectedSubjects) || selectedSubjects.length < 1) {
+      throw new Error('selectedSubjects must be a non-empty array');
+    }
+    if (!aspiringCourse) {
+      throw new Error('aspiringCourse is required');
+    }
+    if (typeof goalScore !== 'number' || goalScore < 0 || goalScore > 400) {
+      throw new Error('Goal score must be a number between 0 and 400');
+    }
+    if (!['visual', 'auditory', 'kinesthetic', 'reading'].includes(learningStyle)) {
+      throw new Error('Invalid learning style');
+    }
+
+    if (COURSE_SUBJECT_REQUIREMENTS[aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS]) {
+      const requiredSubjects = COURSE_SUBJECT_REQUIREMENTS[aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS];
+      const missingSubjects = requiredSubjects.filter(subject => !selectedSubjects.includes(subject));
+      if (missingSubjects.length > 0) {
+        throw new Error(`Missing required subjects for ${aspiringCourse}: ${missingSubjects.join(', ')}`);
+      }
+    }
+
+    const [analytics, weakTopics] = await Promise.all([
+      AnalyticsService.getUserAnalytics(userId),
+      AnalyticsService.getWeakTopics(userId, 5)
+    ]);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return this.generateDayPlan(userId, today, analytics, weakTopics, {
+      selectedSubjects,
+      aspiringCourse,
+      goalScore,
+      learningStyle,
+      diagnosticResults: []
+    }, selectedSubjects);
+  }
+
+  static async getStudyPlan(userId: number): Promise<StudyPlan[]> {
+    if (!Number.isInteger(userId) || userId <= 0) {
+      throw new Error('Invalid user ID');
+    }
+
+    const plans = await prisma.studyPlan.findMany({
+      where: { userId },
+      include: { tasks: { include: { topic: true } } },
+      orderBy: { date: 'asc' }
+    });
+
+    return plans.map(this.formatStudyPlan);
+  }
+
+  static async updateStudyTask(userId: number, taskId: number, status: StudyTaskStatus, timeSpent?: number) {
+    if (!Number.isInteger(userId) || userId <= 0) {
+      throw new Error('Invalid user ID');
+    }
+    if (!Number.isInteger(taskId) || taskId <= 0) {
+      throw new Error('Invalid task ID');
+    }
+    if (!Object.values(StudyTaskStatus).includes(status)) {
+      throw new Error('Invalid status');
+    }
+
     const task = await prisma.studyTask.findFirst({
       where: {
         id: taskId,
         studyPlan: { userId }
-      }
+      },
+      include: { topic: true }
     });
 
     if (!task) throw new Error('Task not found');
@@ -201,42 +324,28 @@ export class StudyPlanService {
       data: {
         status,
         ...(timeSpent && { actualTimeSpent: timeSpent }),
-        ...(status === 'completed' && { completedAt: new Date() })
-      }
+        ...(status === StudyTaskStatus.COMPLETED && { completed: true, completedAt: new Date() })
+      },
+      include: { topic: true }
     });
 
-    return updatedTask;
-  }
-
-  private static formatStudyPlan(planData: any): StudyPlan {
-    const completedTasks = planData.tasks.filter((t: any) => t.status === 'completed').length;
-    const totalTasks = planData.tasks.length;
-    
     return {
-      date: planData.date,
-      totalEstimatedTime: planData.tasks.reduce((sum: number, task: any) => sum + task.estimatedTime, 0),
-      tasks: planData.tasks.map((task: any) => ({
-        id: task.id,
-        type: task.type,
-        title: task.title,
-        description: task.description,
-        subject: task.subject,
-        topic: task.topic,
-        estimatedTime: task.estimatedTime,
-        priority: task.priority,
-        status: task.status,
-        dueDate: task.dueDate,
-        metadata: task.metadata
-      })),
-      completionRate: totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
+      ...updatedTask,
+      topic: updatedTask.topic?.name
     };
   }
 
   static async createCustomTask(userId: number, taskData: Partial<StudyTask>) {
+    if (!Number.isInteger(userId) || userId <= 0) {
+      throw new Error('Invalid user ID');
+    }
+    if (!taskData.title || !taskData.description) {
+      throw new Error('Title and description are required');
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Get or create today's study plan
     let studyPlan = await prisma.studyPlan.findFirst({
       where: { userId, date: today }
     });
@@ -245,31 +354,75 @@ export class StudyPlanService {
       studyPlan = await prisma.studyPlan.create({
         data: {
           userId,
-          date: today,
-          totalEstimatedTime: 0
+          title: 'Daily Study Plan',
+          description: 'Auto-generated daily study plan',
+          startDate: today,
+          endDate: today,
+          aiGenerated: true,
+          date: today
         }
       });
     }
 
-    // Create the custom task
     const task = await prisma.studyTask.create({
       data: {
         studyPlanId: studyPlan.id,
-        type: taskData.type || 'practice',
+        type: taskData.type || StudyTaskType.PRACTICE,
         title: taskData.title!,
         description: taskData.description!,
         subject: taskData.subject,
-        topic: taskData.topic,
+        topicId: taskData.topicId,
         estimatedTime: taskData.estimatedTime || 30,
-        priority: taskData.priority || 'medium',
-        status: 'pending',
+        priority: taskData.priority || StudyTaskPriority.MEDIUM,
+        status: StudyTaskStatus.PENDING,
         dueDate: taskData.dueDate || today,
-        metadata: taskData.metadata
-      }
+        metadata: taskData.metadata,
+        completed: false
+      },
+      include: { topic: true }
     });
 
-    return task;
+    return {
+      ...task,
+      topic: task.topic?.name
+    };
+  }
+
+  private static formatStudyPlan(planData: any): StudyPlan {
+    const tasks = planData.tasks.map((task: any) => ({
+      id: task.id,
+      type: task.type,
+      title: task.title,
+      description: task.description,
+      subject: task.subject,
+      topic: task.topic?.name,
+      topicId: task.topicId,
+      estimatedTime: task.estimatedTime,
+      priority: task.priority,
+      status: task.status,
+      dueDate: task.dueDate,
+      metadata: task.metadata,
+      completed: task.completed,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt
+    }));
+
+    return {
+      id: planData.id,
+      userId: planData.userId,
+      title: planData.title,
+      description: planData.description,
+      startDate: planData.startDate,
+      endDate: planData.endDate,
+      aiGenerated: planData.aiGenerated,
+      date: planData.date,
+      createdAt: planData.createdAt,
+      updatedAt: planData.updatedAt,
+      tasks,
+      totalEstimatedTime: tasks.reduce((sum: number, task: any) => sum + (task.estimatedTime || 0), 0),
+      completionRate: tasks.length > 0
+        ? (tasks.filter((t: any) => t.status === StudyTaskStatus.COMPLETED).length / tasks.length) * 100
+        : 0
+    };
   }
 }
-
-

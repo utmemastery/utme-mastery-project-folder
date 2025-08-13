@@ -44,7 +44,7 @@ export class AuthService {
     const verificationCode = generateVerificationCode();
     const verificationCodeExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Create user
+    // Create user with all fields expected by frontend
     const user = await prisma.user.create({
       data: {
         email,
@@ -54,7 +54,11 @@ export class AuthService {
         lastName,
         verificationCode,
         verificationCodeExpiry,
-        role: 'STUDENT'
+        role: 'STUDENT',
+        selectedSubjects: [], // Default empty array
+        goalScore: null, // Default null
+        aspiringCourse: null, // Default null
+        learningStyle: null // Default null
       },
       select: {
         id: true,
@@ -64,7 +68,11 @@ export class AuthService {
         phoneNumber: true,
         emailVerified: true,
         onboardingDone: true,
-        role: true
+        role: true,
+        selectedSubjects: true,
+        goalScore: true,
+        aspiringCourse: true,
+        learningStyle: true
       }
     });
 
@@ -281,4 +289,6 @@ export class AuthService {
       throw new Error('Invalid or expired reset token');
     }
   }
+
+
 }

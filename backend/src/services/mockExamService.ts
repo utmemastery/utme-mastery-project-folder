@@ -1,37 +1,37 @@
-// backend/src/services/mockExamService.ts
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, MockExamStatus, ExamType } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
 interface MockExamQuestion {
   id: number;
-  question: string;
-  options: string[];
-  correctAnswer: number;
-  subject: string;
-  topic: string;
-  difficulty: string;
+  questionId: number;
+  sectionId?: number;
+  isCorrect?: boolean;
+  responseTime?: number;
+  userAnswer?: any; // JSON type for userAnswer
 }
 
 interface CreateMockExamData {
   userId: number;
-  type: string;
-  subjects: string[];
-  questions: MockExamQuestion[];
+  examType: ExamType;
+  subjects: string[]; // subject names
+  questions: { questionId: number; sectionId?: number }[];
+  title: string;
+  description?: string;
   timeLimit: number;
   startTime: Date;
 }
 
 interface SubmitMockExamData {
-  examId: string;
+  examId: number;
   userId: number;
-  answers: Array<{
+  answers: {
     questionId: number;
-    selectedAnswer: number;
-    timeSpent: number;
-  }>;
-  timeSpent: number;
+    selectedOptionId: number;
+    responseTime: number;
+    sectionId?: number;
+  }[];
 }
 
 export class MockExamService {
@@ -42,14 +42,21 @@ export class MockExamService {
       select: { selectedSubjects: true }
     });
 
-    const subjects = user?.selectedSubjects || [];
+    const selectedSubjects = user?.selectedSubjects || [];
+
+    // Validate subject names against the Subject model
+    const validSubjects = await prisma.subject.findMany({
+      where: { name: { in: selectedSubjects } },
+      select: { name: true }
+    });
+    const subjects = validSubjects.map(subject => subject.name);
 
     return [
       {
         id: 'full_utme',
         title: 'Full UTME Mock Exam',
         description: '180 questions across all your subjects',
-        type: 'full_utme',
+        type: 'FULL_UTME' as ExamType,
         subjects,
         questionCount: 180,
         timeLimit: 210, // 3.5 hours
@@ -59,8 +66,8 @@ export class MockExamService {
         id: 'subject_english',
         title: 'English Language Mock',
         description: '60 questions focused on English',
-        type: 'subject_specific',
-        subjects: ['english'],
+        type: 'SUBJECT_SPECIFIC' as ExamType,
+        subjects: subjects.includes('english') ? ['english'] : [],
         questionCount: 60,
         timeLimit: 60,
         difficulty: 'mixed'
@@ -69,8 +76,8 @@ export class MockExamService {
         id: 'subject_mathematics',
         title: 'Mathematics Mock',
         description: '60 questions focused on Mathematics',
-        type: 'subject_specific',
-        subjects: ['mathematics'],
+        type: 'SUBJECT_SPECIFIC' as ExamType,
+        subjects: subjects.includes('mathematics') ? ['mathematics'] : [],
         questionCount: 60,
         timeLimit: 60,
         difficulty: 'mixed'
@@ -82,7 +89,7 @@ export class MockExamService {
     const recentExams = await prisma.mockExam.findMany({
       where: {
         userId,
-        status: 'completed'
+        status: MockExamStatus.COMPLETED
       },
       orderBy: {
         completedAt: 'desc'
@@ -90,9 +97,13 @@ export class MockExamService {
       take: limit,
       select: {
         id: true,
-        type: true,
-        subjects: true,
-        totalQuestions: true,
+        examType: true,
+        mockExamSubjects: {
+          include: {
+            subject: { select: { name: true } }
+          }
+        },
+        questionCount: true,
         correctAnswers: true,
         percentage: true,
         completedAt: true
@@ -101,9 +112,11 @@ export class MockExamService {
 
     return recentExams.map(exam => ({
       id: exam.id,
-      examType: exam.type,
-      subject: exam.subjects.length === 1 ? exam.subjects[0] : 'Multiple Subjects',
-      totalQuestions: exam.totalQuestions,
+      examType: exam.examType,
+      subject: exam.mockExamSubjects.length === 1
+        ? exam.mockExamSubjects[0].subject.name
+        : 'Multiple Subjects',
+      questionCount: exam.questionCount,
       correctAnswers: exam.correctAnswers,
       percentage: exam.percentage,
       completedAt: exam.completedAt
@@ -111,149 +124,147 @@ export class MockExamService {
   }
 
   static async createMockExam(data: CreateMockExamData) {
-    const examId = uuidv4();
+    // Find subject IDs
+    const subjectRecords = await prisma.subject.findMany({
+      where: { name: { in: data.subjects } }
+    });
+    if (subjectRecords.length !== data.subjects.length) {
+      throw new Error('One or more subjects not found');
+    }
 
-    // Create the mock exam record
-    const exam = await prisma.mockExam.create({
+    // Create the mock exam
+    const mockExam = await prisma.mockExam.create({
       data: {
-        id: examId,
         userId: data.userId,
-        type: data.type,
-        subjects: data.subjects,
-        totalQuestions: data.questions.length,
+        title: data.title,
+        description: data.description,
+        examType: data.examType,
         timeLimit: data.timeLimit,
         startTime: data.startTime,
-        status: 'in_progress'
+        status: MockExamStatus.IN_PROGRESS,
+        questionCount: data.questions.length,
+        mockExamSubjects: {
+          create: subjectRecords.map(subject => ({
+            subjectId: subject.id
+          }))
+        },
+        questions: {
+          create: data.questions.map(q => ({
+            questionId: q.questionId,
+            sectionId: q.sectionId
+          }))
+        }
+      },
+      include: {
+        mockExamSubjects: true,
+        questions: true
       }
     });
 
-    // Create question attempts for tracking
-    const questionAttempts = data.questions.map(question => ({
-      mockExamId: examId,
-      questionId: question.id,
-      selectedAnswer: null,
-      isCorrect: null,
-      timeSpent: 0
-    }));
-
-    await prisma.mockExamQuestionAttempt.createMany({
-      data: questionAttempts
-    });
-
-    return {
-      id: examId,
-      type: data.type,
-      subjects: data.subjects,
-      questions: data.questions,
-      timeLimit: data.timeLimit,
-      startTime: data.startTime
-    };
+    return mockExam;
   }
 
   static async submitMockExam(data: SubmitMockExamData) {
-    const { examId, userId, answers, timeSpent } = data;
-
-    // Get the mock exam
-    const exam = await prisma.mockExam.findFirst({
-      where: {
-        id: examId,
-        userId,
-        status: 'in_progress'
+    // Fetch the exam and its questions
+    const mockExam = await prisma.mockExam.findUnique({
+      where: { id: data.examId },
+      include: {
+        questions: {
+          include: {
+            question: {
+              select: {
+                id: true,
+                text: true,
+                options: true,
+                correctOptionId: true,
+                subject: { select: { name: true } },
+                topic: { select: { name: true } }
+              }
+            }
+          }
+        },
+        mockExamSubjects: true
       }
     });
+    if (!mockExam) throw new Error('Mock exam not found');
+    if (mockExam.userId !== data.userId) throw new Error('Unauthorized');
 
-    if (!exam) {
-      throw new Error('Mock exam not found or already completed');
-    }
-
-    // Process answers and calculate score
     let correctAnswers = 0;
-    const detailedResults: any[] = [];
+    let totalTimeSpent = 0;
 
-    for (const answer of answers) {
-      // Get the correct answer for this question
-      const question = await prisma.question.findUnique({
-        where: { id: answer.questionId }
-      });
+    // Update each MockExamQuestion with user answer and correctness
+    for (const answer of data.answers) {
+      const examQuestion = mockExam.questions.find(q => q.questionId === answer.questionId);
+      if (!examQuestion) continue;
 
-      if (!question) continue;
-
-      const isCorrect = answer.selectedAnswer === question.correctAnswer;
+      const isCorrect = answer.selectedOptionId === examQuestion.question.correctOptionId;
       if (isCorrect) correctAnswers++;
+      totalTimeSpent += answer.responseTime;
 
-      // Update the question attempt
-      await prisma.mockExamQuestionAttempt.updateMany({
-        where: {
-          mockExamId: examId,
-          questionId: answer.questionId
-        },
+      await prisma.mockExamQuestion.update({
+        where: { id: examQuestion.id },
         data: {
-          selectedAnswer: answer.selectedAnswer,
+          userAnswer: { selectedOptionId: answer.selectedOptionId },
           isCorrect,
-          timeSpent: answer.timeSpent
+          responseTime: answer.responseTime
         }
       });
-
-      detailedResults.push({
-        questionId: answer.questionId,
-        question: question.question,
-        options: question.options,
-        selectedAnswer: answer.selectedAnswer,
-        correctAnswer: question.correctAnswer,
-        isCorrect,
-        subject: question.subject,
-        topic: question.topic,
-        explanation: question.explanation,
-        timeSpent: answer.timeSpent
-      });
     }
 
-    const percentage = Math.round((correctAnswers / exam.totalQuestions) * 100);
-    const projectedUTMEScore = Math.round(200 + (percentage / 100) * 200);
+    // Calculate percentage
+    const percentage = mockExam.questionCount && mockExam.questionCount > 0
+      ? Math.round((correctAnswers / mockExam.questionCount) * 100)
+      : 0;
 
-    // Update the mock exam with results
+    // Update exam status and stats
     const completedExam = await prisma.mockExam.update({
-      where: { id: examId },
+      where: { id: data.examId },
       data: {
-        status: 'completed',
+        status: MockExamStatus.COMPLETED,
         correctAnswers,
         percentage,
-        timeSpent,
-        completedAt: new Date()
+        timeSpent: totalTimeSpent,
+        completedAt: new Date(),
+        endTime: new Date()
       }
     });
 
     // Update user analytics
-    await this.updateUserAnalytics(userId, {
+    await this.updateUserAnalytics(data.userId, {
       mockExamTaken: true,
       percentage,
-      subjects: exam.subjects
+      subjectIds: mockExam.mockExamSubjects.map(s => s.subjectId)
     });
 
-    return {
-      examId,
-      totalQuestions: exam.totalQuestions,
-      correctAnswers,
-      percentage,
-      projectedUTMEScore,
-      timeSpent,
-      subjectBreakdown: await this.calculateSubjectBreakdown(detailedResults),
-      detailedResults,
-      completedAt: completedExam.completedAt
-    };
+    return completedExam;
   }
 
-  static async getMockExamResults(examId: string, userId: number) {
+  static async getMockExamResults(examId: number, userId: number) {
     const exam = await prisma.mockExam.findFirst({
       where: {
         id: examId,
         userId,
-        status: 'completed'
+        status: MockExamStatus.COMPLETED
       },
       include: {
-        questionAttempts: {
+        questions: {
           include: {
-            question: true
+            question: {
+              select: {
+                id: true,
+                text: true,
+                options: true,
+                correctOptionId: true,
+                explanation: true,
+                subject: { select: { name: true } },
+                topic: { select: { name: true } }
+              }
+            }
+          }
+        },
+        mockExamSubjects: {
+          include: {
+            subject: { select: { name: true } }
           }
         }
       }
@@ -261,24 +272,24 @@ export class MockExamService {
 
     if (!exam) return null;
 
-    const detailedResults = exam.questionAttempts.map(attempt => ({
+    const detailedResults = exam.questions.map(attempt => ({
       questionId: attempt.questionId,
-      question: attempt.question.question,
+      question: attempt.question.text,
       options: attempt.question.options,
-      selectedAnswer: attempt.selectedAnswer,
-      correctAnswer: attempt.question.correctAnswer,
+      selectedAnswer: attempt.userAnswer?.selectedOptionId ?? null,
+      correctAnswer: attempt.question.correctOptionId,
       isCorrect: attempt.isCorrect,
-      subject: attempt.question.subject,
-      topic: attempt.question.topic,
+      subject: attempt.question.subject.name,
+      topic: attempt.question.topic?.name ?? null,
       explanation: attempt.question.explanation,
-      timeSpent: attempt.timeSpent
+      responseTime: attempt.responseTime
     }));
 
     return {
       examId: exam.id,
-      type: exam.type,
-      subjects: exam.subjects,
-      totalQuestions: exam.totalQuestions,
+      examType: exam.examType,
+      subjects: exam.mockExamSubjects.map(s => s.subject.name),
+      questionCount: exam.questionCount,
       correctAnswers: exam.correctAnswers,
       percentage: exam.percentage,
       timeSpent: exam.timeSpent,
@@ -295,7 +306,7 @@ export class MockExamService {
       prisma.mockExam.findMany({
         where: {
           userId,
-          status: 'completed'
+          status: MockExamStatus.COMPLETED
         },
         orderBy: {
           completedAt: 'desc'
@@ -304,9 +315,13 @@ export class MockExamService {
         take: limit,
         select: {
           id: true,
-          type: true,
-          subjects: true,
-          totalQuestions: true,
+          examType: true,
+          mockExamSubjects: {
+            include: {
+              subject: { select: { name: true } }
+            }
+          },
+          questionCount: true,
           correctAnswers: true,
           percentage: true,
           timeSpent: true,
@@ -316,34 +331,51 @@ export class MockExamService {
       prisma.mockExam.count({
         where: {
           userId,
-          status: 'completed'
+          status: MockExamStatus.COMPLETED
         }
       })
     ]);
 
-    return { exams, total };
+    return {
+      exams: exams.map(exam => ({
+        id: exam.id,
+        examType: exam.examType,
+        subjects: exam.mockExamSubjects.map(s => s.subject.name),
+        questionCount: exam.questionCount,
+        correctAnswers: exam.correctAnswers,
+        percentage: exam.percentage,
+        timeSpent: exam.timeSpent,
+        completedAt: exam.completedAt
+      })),
+      total
+    };
   }
 
-  static async getIncompleteMockExam(examId: string, userId: number) {
+  static async getIncompleteMockExam(examId: number, userId: number) {
     const exam = await prisma.mockExam.findFirst({
       where: {
         id: examId,
         userId,
-        status: 'in_progress'
+        status: MockExamStatus.IN_PROGRESS
       },
       include: {
-        questionAttempts: {
+        questions: {
           include: {
             question: {
               select: {
                 id: true,
-                question: true,
+                text: true,
                 options: true,
-                subject: true,
-                topic: true,
+                subject: { select: { name: true } },
+                topic: { select: { name: true } },
                 difficulty: true
               }
             }
+          }
+        },
+        mockExamSubjects: {
+          include: {
+            subject: { select: { name: true } }
           }
         }
       }
@@ -357,21 +389,28 @@ export class MockExamService {
 
     // Get answered questions
     const answers: Record<number, any> = {};
-    exam.questionAttempts.forEach(attempt => {
-      if (attempt.selectedAnswer !== null) {
+    exam.questions.forEach(attempt => {
+      if (attempt.userAnswer !== null) {
         answers[attempt.questionId] = {
           questionId: attempt.questionId,
-          selectedAnswer: attempt.selectedAnswer,
-          timeSpent: attempt.timeSpent
+          selectedAnswer: attempt.userAnswer?.selectedOptionId ?? null,
+          responseTime: attempt.responseTime
         };
       }
     });
 
     return {
       id: exam.id,
-      type: exam.type,
-      subjects: exam.subjects,
-      questions: exam.questionAttempts.map(attempt => attempt.question),
+      examType: exam.examType,
+      subjects: exam.mockExamSubjects.map(s => s.subject.name),
+      questions: exam.questions.map(attempt => ({
+        id: attempt.question.id,
+        text: attempt.question.text,
+        options: attempt.question.options,
+        subject: attempt.question.subject.name,
+        topic: attempt.question.topic?.name ?? null,
+        difficulty: attempt.question.difficulty
+      })),
       timeLimit: exam.timeLimit,
       startTime: exam.startTime,
       timeRemaining,
@@ -407,52 +446,21 @@ export class MockExamService {
   }
 
   private static async updateUserAnalytics(userId: number, data: any) {
-    // Update user progress and analytics
-    const today = new Date().toISOString().split('T')[0];
-    
-    await prisma.userProgress.upsert({
-      where: {
-        userId_date: {
-          userId,
-          date: today
-        }
-      },
-      update: {
-        mockExamsTaken: {
-          increment: 1
-        },
-        lastActivity: new Date()
-      },
-      create: {
-        userId,
-        date: today,
-        mockExamsTaken: 1,
-        lastActivity: new Date()
-      }
-    });
-
-    // Update subject-specific progress
-    for (const subject of data.subjects) {
-      await prisma.subjectProgress.upsert({
+    // Update PerformanceSnapshot for each subject
+    for (const subjectId of data.subjectIds) {
+      await prisma.performanceSnapshot.upsert({
         where: {
-          userId_subject: {
-            userId,
-            subject
-          }
+          userId_subjectId: { userId, subjectId }
         },
         update: {
-          mockExamAverage: data.percentage,
-          lastMockExamScore: data.percentage,
-          totalMockExams: {
-            increment: 1
-          }
+          predictedScore: data.percentage,
+          takenAt: new Date()
         },
         create: {
           userId,
-          subject,
-          mockExamAverage: data.percentage,
-          lastMockExamScore: data.percentage,
-          totalMockExams: 1
+          subjectId,
+          predictedScore: data.percentage,
+          takenAt: new Date()
         }
       });
     }

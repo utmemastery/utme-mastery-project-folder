@@ -1,21 +1,29 @@
-// mobile/src/stores/flashcardStore.ts
 import { create } from 'zustand';
 import api from '../services/api';
 
 interface Flashcard {
   id: number;
-  front: string;
-  back: string;
-  subject: string;
-  topic: string;
-  difficulty: string;
+  prompt: string;
+  answer: string;
+  subjectId: number;
+  topicId: number;
+  difficulty?: string;
+  mediaUrl?: string;
   tags: string[];
+  createdByUserId?: number;
+}
+
+interface ReviewStats {
+  newCards: number;
+  masteredCards: number;
+  learningCards: number;
+  recentSessions: { cardsReviewed: number; accuracy: number; date: string }[];
 }
 
 interface FlashcardState {
   flashcards: Flashcard[];
   currentCardIndex: number;
-  reviewStats: any;
+  reviewStats: ReviewStats | null;
   isLoading: boolean;
   error: string | null;
 
@@ -45,6 +53,7 @@ export const useFlashcardStore = create<FlashcardState>((set, get) => ({
       const response = await api.get('/flashcards/review');
       set({ 
         flashcards: response.data.flashcards,
+        reviewStats: response.data.reviewStats || { newCards: 0, masteredCards: 0, learningCards: 0, recentSessions: [] },
         currentCardIndex: 0,
         isLoading: false 
       });

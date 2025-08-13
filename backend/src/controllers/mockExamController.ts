@@ -1,17 +1,13 @@
-// backend/src/controllers/mockExamController.ts
 import { Request, Response } from 'express';
+import { AuthRequest } from '../middleware/auth'; 
 import { MockExamService } from '../services/mockExamService';
 import { QuestionService } from '../services/questionService';
-import { UserService } from '../services/userService';
-
-interface AuthRequest extends Request {
-  user?: { userId: number };
-}
+import { ExamType } from '@prisma/client';
 
 export class MockExamController {
   static async getMockExams(req: AuthRequest, res: Response) {
     try {
-      const userId = req.user!.userId;
+      const userId = req.user!.id; // Changed from userId
       const mockExams = await MockExamService.getAvailableMockExams(userId);
       
       res.json({
@@ -29,7 +25,7 @@ export class MockExamController {
 
   static async getRecentScores(req: AuthRequest, res: Response) {
     try {
-      const userId = req.user!.userId;
+      const userId = req.user!.id; // Changed from userId
       const scores = await MockExamService.getRecentScores(userId, 10);
       
       res.json({
@@ -47,8 +43,16 @@ export class MockExamController {
 
   static async startMockExam(req: AuthRequest, res: Response) {
     try {
-      const userId = req.user!.userId;
-      const { type, subjects, timeLimit, questionCount } = req.body;
+      const userId = req.user!.id; // Changed from userId
+      const { type, subjects, timeLimit, questionCount, title, description } = req.body;
+
+      // Validate examType
+      if (!Object.values(ExamType).includes(type)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid exam type'
+        });
+      }
 
       // Generate questions for the mock exam
       const questions = await QuestionService.generateMockExamQuestions({
@@ -67,9 +71,11 @@ export class MockExamController {
       // Create mock exam session
       const exam = await MockExamService.createMockExam({
         userId,
-        type,
+        examType: type as ExamType,
         subjects,
         questions: questions.slice(0, questionCount),
+        title: title || `Mock Exam ${new Date().toISOString().split('T')[0]}`,
+        description: description || undefined,
         timeLimit,
         startTime: new Date()
       });
@@ -78,15 +84,15 @@ export class MockExamController {
         success: true,
         exam: {
           id: exam.id,
-          type: exam.type,
-          subjects: exam.subjects,
+          type: exam.examType,
+          subjects: exam.mockExamSubjects.map(s => s.subject.name),
           questions: exam.questions.map(q => ({
-            id: q.id,
-            question: q.question,
-            options: q.options,
-            subject: q.subject,
-            topic: q.topic,
-            difficulty: q.difficulty
+            id: q.questionId,
+            text: q.question.text,
+            options: q.question.options,
+            subject: q.question.subject.name,
+            topic: q.question.topic?.name ?? null,
+            difficulty: q.question.difficulty
             // Note: Correct answer is not sent to frontend
           })),
           timeLimit: exam.timeLimit,
@@ -104,15 +110,14 @@ export class MockExamController {
 
   static async submitMockExam(req: AuthRequest, res: Response) {
     try {
-      const userId = req.user!.userId;
-      const { examId, answers, timeSpent } = req.body;
+      const userId = req.user!.id; // Changed from userId
+      const { examId, answers } = req.body;
 
       // Process the mock exam submission
       const results = await MockExamService.submitMockExam({
         examId,
         userId,
-        answers,
-        timeSpent
+        answers
       });
 
       res.json({
@@ -130,10 +135,10 @@ export class MockExamController {
 
   static async getMockExamResults(req: AuthRequest, res: Response) {
     try {
-      const userId = req.user!.userId;
+      const userId = req.user!.id; // Changed from userId
       const { examId } = req.params;
 
-      const results = await MockExamService.getMockExamResults(examId, userId);
+      const results = await MockExamService.getMockExamResults(Number(examId), userId);
 
       if (!results) {
         return res.status(404).json({
@@ -157,7 +162,7 @@ export class MockExamController {
 
   static async getMockExamHistory(req: AuthRequest, res: Response) {
     try {
-      const userId = req.user!.userId;
+      const userId = req.user!.id; // Changed from userId
       const { page = 1, limit = 20 } = req.query;
 
       const history = await MockExamService.getMockExamHistory(
@@ -187,10 +192,10 @@ export class MockExamController {
 
   static async resumeMockExam(req: AuthRequest, res: Response) {
     try {
-      const userId = req.user!.userId;
+      const userId = req.user!.id; // Changed from userId
       const { examId } = req.params;
 
-      const exam = await MockExamService.getIncompleteMockExam(examId, userId);
+      const exam = await MockExamService.getIncompleteMockExam(Number(examId), userId);
 
       if (!exam) {
         return res.status(404).json({

@@ -1,4 +1,3 @@
-// mobile/src/screens/ProfileScreen.tsx
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -36,15 +35,24 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   } = useProfileStore();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [studyRemindersEnabled, setStudyRemindersEnabled] = useState(profile?.studyReminders ?? true);
 
   useEffect(() => {
     fetchProfile();
     fetchProfileStats();
   }, []);
 
+  useEffect(() => {
+    setStudyRemindersEnabled(profile?.studyReminders ?? true);
+  }, [profile?.studyReminders]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchProfile(), fetchProfileStats()]);
+    try {
+      await Promise.all([fetchProfile(), fetchProfileStats()]);
+    } catch {
+      Alert.alert('Error', 'Failed to refresh data. Please check your connection.');
+    }
     setRefreshing(false);
   };
 
@@ -60,7 +68,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         if (response.assets && response.assets[0]) {
           const imageUri = response.assets[0].uri;
           if (imageUri) {
-            updateProfileImage(imageUri);
+            updateProfileImage(imageUri).catch(() => {
+              Alert.alert('Error', 'Failed to update profile image.');
+            });
           }
         }
       }
@@ -94,7 +104,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           onPress: async () => {
             try {
               await deleteAccount();
-              // Navigation will be handled by auth state change
+              navigation.replace('Login');
             } catch (error) {
               Alert.alert('Error', 'Failed to delete account. Please try again.');
             }
@@ -106,7 +116,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   const handleExportData = async () => {
     try {
-      const data = await exportData();
+      await exportData();
       Alert.alert('Success', 'Your data has been exported and sent to your email.');
     } catch (error) {
       Alert.alert('Error', 'Failed to export data. Please try again.');
@@ -115,11 +125,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   const toggleStudyReminders = async (value: boolean) => {
     try {
+      setStudyRemindersEnabled(value);
       await updateStudyPreferences({
         studyReminders: value,
         preferredStudyTime: profile?.preferredStudyTime
       });
     } catch (error) {
+      setStudyRemindersEnabled(!value); // Revert on error
       Alert.alert('Error', 'Failed to update study reminders.');
     }
   };
@@ -133,7 +145,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         }
       >
         <View style={{ padding: 24 }}>
-          {/* Header */}
           <View style={{ marginBottom: 32 }}>
             <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
               Profile
@@ -143,7 +154,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             </Text>
           </View>
 
-          {/* Profile Card */}
+          {error && (
+            <View style={{ 
+              backgroundColor: '#FEE2E2', 
+              padding: 16, 
+              borderRadius: 8, 
+              marginBottom: 24 
+            }}>
+              <Text style={{ color: '#DC2626' }}>{error}</Text>
+              <TouchableOpacity onPress={clearError}>
+                <Text style={{ color: '#3B82F6', marginTop: 8 }}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={{
             backgroundColor: 'white',
             borderRadius: 16,
@@ -173,7 +197,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                     />
                   ) : (
                     <Text style={{ fontSize: 36, color: 'white', fontWeight: 'bold' }}>
-                      {user?.firstName?.charAt(0) || 'U'}
+                      {profile?.firstName?.charAt(0) || 'U'}
                     </Text>
                   )}
                 </View>
@@ -193,257 +217,163 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               </TouchableOpacity>
               
               <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginTop: 12 }}>
-                {profile?.firstName} {profile?.lastName}
+                {profile?.firstName || ''} {profile?.lastName || ''}
               </Text>
               <Text style={{ fontSize: 16, color: '#6B7280' }}>
-                {profile?.email}
+                {profile?.email || ''}
               </Text>
+              {profile?.phone && (
+                <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 4 }}>
+                  {profile.phone}
+                </Text>
+              )}
+              {profile?.dateOfBirth && (
+                <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 4 }}>
+                  DOB: {new Date(profile.dateOfBirth).toLocaleDateString()}
+                </Text>
+              )}
+              {profile?.state && (
+                <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 4 }}>
+                  State: {profile.state}
+                </Text>
+              )}
+              {profile?.school && (
+                <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 4 }}>
+                  School: {profile.school}
+                </Text>
+              )}
             </View>
 
-            {/* Quick Stats */}
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: '#1F2937', marginBottom: 8 }}>
+                Study Preferences
+              </Text>
+              {profile?.preferredStudyTime && (
+                <Text style={{ fontSize: 16, color: '#6B7280', marginBottom: 8 }}>
+                  Preferred Study Time: {new Date(profile.preferredStudyTime).toLocaleTimeString()}
+                </Text>
+              )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 16, color: '#6B7280' }}>
+                  Study Reminders
+                </Text>
+                <Switch
+                  value={studyRemindersEnabled}
+                  onValueChange={toggleStudyReminders}
+                  trackColor={{ false: '#D1D5DB', true: '#3B82F6' }}
+                  thumbColor={studyRemindersEnabled ? '#ffffff' : '#f4f3f4'}
+                />
+              </View>
+              {profile?.examYear && (
+                <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 8 }}>
+                  Exam Year: {profile.examYear}
+                </Text>
+              )}
+            </View>
+
             {stats && (
-              <View style={{ 
-                flexDirection: 'row', 
-                justifyContent: 'space-around',
-                paddingTop: 20,
-                borderTopWidth: 1,
-                borderTopColor: '#E5E7EB'
-              }}>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#3B82F6' }}>
-                    {stats.studyStreak}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: '#6B7280' }}>Day Streak</Text>
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 18, fontWeight: '600', color: '#1F2937', marginBottom: 8 }}>
+                  Statistics
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Total Questions</Text>
+                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.totalQuestions}</Text>
                 </View>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#10B981' }}>
-                    {stats.averageScore}%
-                  </Text>
-                  <Text style={{ fontSize: 12, color: '#6B7280' }}>Avg Score</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Correct Answers</Text>
+                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.correctAnswers}</Text>
                 </View>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#8B5CF6' }}>
-                    {Math.round(stats.totalStudyTime / 3600)}h
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Study Streak</Text>
+                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.studyStreak} days</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Total Study Time</Text>
+                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.totalStudyTime} mins</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Average Score</Text>
+                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.averageScore}%</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Strongest Subject</Text>
+                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.strongestSubject || 'N/A'}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Weakest Subject</Text>
+                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.weakestSubject || 'N/A'}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Last Active</Text>
+                  <Text style={{ fontSize: 16, color: '#1F2937' }}>
+                    {stats.lastActiveDate ? new Date(stats.lastActiveDate).toLocaleDateString() : 'N/A'}
                   </Text>
-                  <Text style={{ fontSize: 12, color: '#6B7280' }}>Study Time</Text>
                 </View>
               </View>
             )}
           </View>
 
-          {/* Settings Sections */}
-          <View style={{ gap: 16 }}>
-            {/* Account Settings */}
-            <SettingsSection title="Account Settings">
-              <SettingsItem 
-                icon="👤"
-                title="Edit Profile"
-                subtitle="Update your personal information"
-                onPress={() => navigation.navigate('EditProfile')}
-                showChevron
-              />
-              <SettingsItem 
-                icon="🎯"
-                title="Goal & Subjects"
-                subtitle={`Goal: ${profile?.goalScore || 300} • ${profile?.selectedSubjects?.length || 0} subjects`}
-                onPress={() => navigation.navigate('GoalSettings')}
-                showChevron
-              />
-              <SettingsItem 
-                icon="🔔"
-                title="Study Reminders"
-                subtitle="Get notified about your study schedule"
-                rightElement={
-                  <Switch
-                    value={profile?.studyReminders || false}
-                    onValueChange={toggleStudyReminders}
-                    trackColor={{ false: '#E5E7EB', true: '#3B82F6' }}
-                    thumbColor={profile?.studyReminders ? 'white' : '#9CA3AF'}
-                  />
-                }
-              />
-            </SettingsSection>
-
-            {/* Study Settings */}
-            <SettingsSection title="Study Preferences">
-              <SettingsItem 
-                icon="📚"
-                title="Study Plan"
-                subtitle="Customize your learning path"
-                onPress={() => navigation.navigate('StudyPlan')}
-                showChevron
-              />
-              <SettingsItem 
-                icon="📊"
-                title="Performance Analytics"
-                subtitle="Detailed insights into your progress"
-                onPress={() => navigation.navigate('Analytics')}
-                showChevron
-              />
-              <SettingsItem 
-                icon="🎮"
-                title="Practice Settings"
-                subtitle="Configure practice sessions"
-                onPress={() => navigation.navigate('PracticeSettings')}
-                showChevron
-              />
-            </SettingsSection>
-
-            {/* Data & Privacy */}
-            <SettingsSection title="Data & Privacy">
-              <SettingsItem 
-                icon="📤"
-                title="Export Data"
-                subtitle="Download your study data"
-                onPress={handleExportData}
-                showChevron
-              />
-              <SettingsItem 
-                icon="🔒"
-                title="Privacy Policy"
-                subtitle="Learn how we protect your data"
-                onPress={() => navigation.navigate('PrivacyPolicy')}
-                showChevron
-              />
-              <SettingsItem 
-                icon="📋"
-                title="Terms of Service"
-                subtitle="Review our terms and conditions"
-                onPress={() => navigation.navigate('TermsOfService')}
-                showChevron
-              />
-            </SettingsSection>
-
-            {/* Support */}
-            <SettingsSection title="Support">
-              <SettingsItem 
-                icon="❓"
-                title="Help & FAQ"
-                subtitle="Get answers to common questions"
-                onPress={() => navigation.navigate('Help')}
-                showChevron
-              />
-              <SettingsItem 
-                icon="📧"
-                title="Contact Support"
-                subtitle="Get help from our team"
-                onPress={() => navigation.navigate('ContactSupport')}
-                showChevron
-              />
-              <SettingsItem 
-                icon="⭐"
-                title="Rate the App"
-                subtitle="Share your feedback"
-                onPress={() => {/* Handle app rating */}}
-                showChevron
-              />
-            </SettingsSection>
-
-            {/* Account Actions */}
-            <SettingsSection title="Account Actions">
-              <SettingsItem 
-                icon="🚪"
-                title="Logout"
-                subtitle="Sign out of your account"
-                onPress={handleLogout}
-                titleColor="#EF4444"
-              />
-              <SettingsItem 
-                icon="🗑️"
-                title="Delete Account"
-                subtitle="Permanently delete your account"
-                onPress={handleDeleteAccount}
-                titleColor="#EF4444"
-              />
-            </SettingsSection>
-          </View>
-
-          {/* App Version */}
-          <View style={{ alignItems: 'center', marginTop: 32, marginBottom: 16 }}>
-            <Text style={{ fontSize: 12, color: '#9CA3AF' }}>
-              UTME Prep App v1.0.0
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#3B82F6',
+              padding: 16,
+              borderRadius: 8,
+              alignItems: 'center',
+              marginBottom: 16
+            }}
+            onPress={() => navigation.navigate('EditProfile')}
+          >
+            <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>
+              Edit Profile
             </Text>
-          </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#10B981',
+              padding: 16,
+              borderRadius: 8,
+              alignItems: 'center',
+              marginBottom: 16
+            }}
+            onPress={handleExportData}
+          >
+            <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>
+              Export My Data
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#EF4444',
+              padding: 16,
+              borderRadius: 8,
+              alignItems: 'center',
+              marginBottom: 16
+            }}
+            onPress={handleDeleteAccount}
+          >
+            <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>
+              Delete Account
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#6B7280',
+              padding: 16,
+              borderRadius: 8,
+              alignItems: 'center'
+            }}
+            onPress={handleLogout}
+          >
+            <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>
+              Logout
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
-
-// Settings Section Component
-interface SettingsSectionProps {
-  title: string;
-  children: React.ReactNode;
-}
-
-const SettingsSection: React.FC<SettingsSectionProps> = ({ title, children }) => (
-  <View>
-    <Text style={{ 
-      fontSize: 16, 
-      fontWeight: '600', 
-      color: '#374151', 
-      marginBottom: 12,
-      marginLeft: 4 
-    }}>
-      {title}
-    </Text>
-    <View style={{
-      backgroundColor: 'white',
-      borderRadius: 12,
-      overflow: 'hidden'
-    }}>
-      {children}
-    </View>
-  </View>
-);
-
-// Settings Item Component
-interface SettingsItemProps {
-  icon: string;
-  title: string;
-  subtitle: string;
-  onPress?: () => void;
-  rightElement?: React.ReactNode;
-  showChevron?: boolean;
-  titleColor?: string;
-}
-
-const SettingsItem: React.FC<SettingsItemProps> = ({
-  icon,
-  title,
-  subtitle,
-  onPress,
-  rightElement,
-  showChevron = false,
-  titleColor = '#1F2937'
-}) => (
-  <TouchableOpacity
-    onPress={onPress}
-    style={{
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: '#F3F4F6'
-    }}
-    disabled={!onPress}
-  >
-    <Text style={{ fontSize: 20, marginRight: 12 }}>{icon}</Text>
-    <View style={{ flex: 1 }}>
-      <Text style={{ 
-        fontSize: 16, 
-        fontWeight: '500', 
-        color: titleColor,
-        marginBottom: 2 
-      }}>
-        {title}
-      </Text>
-      <Text style={{ fontSize: 14, color: '#6B7280' }}>
-        {subtitle}
-      </Text>
-    </View>
-    {rightElement || (showChevron && (
-      <Text style={{ color: '#9CA3AF', fontSize: 16 }}>→</Text>
-    ))}
-  </TouchableOpacity>
-);

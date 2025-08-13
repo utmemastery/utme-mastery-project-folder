@@ -1,8 +1,7 @@
-// mobile/src/screens/mockExam/MockExamHomeScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMockExamStore } from '../../stores/mockExamStore';
+import { useMockExamStore, MockExam, RecentScore } from '../../stores/mockExamStore';
 import { useAuthStore } from '../../stores/authStore';
 
 interface MockExamHomeScreenProps {
@@ -14,9 +13,12 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
   const { 
     mockExams, 
     recentScores, 
+    incompleteExam,
     isLoading, 
+    error,
     fetchMockExams,
-    startMockExam 
+    startMockExam,
+    resumeMockExam
   } = useMockExamStore();
 
   useEffect(() => {
@@ -33,7 +35,7 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
           text: 'Start Exam',
           onPress: () => {
             startMockExam({
-              type: 'full_utme',
+              type: 'FULL_UTME',
               subjects: user?.selectedSubjects || [],
               timeLimit: 210, // 3.5 hours in minutes
               questionCount: 180
@@ -45,12 +47,41 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
     );
   };
 
+  const handleResumeExam = () => {
+    if (incompleteExam) {
+      Alert.alert(
+        'Resume Mock Exam?',
+        'Continue your previous exam where you left off?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Resume',
+            onPress: () => {
+              resumeMockExam(incompleteExam.id);
+              navigation.navigate('MockExamSession');
+            }
+          }
+        ]
+      );
+    }
+  };
+
   const handleStartSubjectMock = (subject: string) => {
     startMockExam({
-      type: 'subject_specific',
+      type: 'SUBJECT_SPECIFIC',
       subjects: [subject],
       timeLimit: 60, // 1 hour
       questionCount: 60
+    });
+    navigation.navigate('MockExamSession');
+  };
+
+  const handleStartQuickMock = () => {
+    startMockExam({
+      type: 'SUBJECT_SPECIFIC',
+      subjects: user?.selectedSubjects || [],
+      timeLimit: 30, // 30 minutes
+      questionCount: 30
     });
     navigation.navigate('MockExamSession');
   };
@@ -59,7 +90,45 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
     ? Math.round(recentScores.reduce((sum, score) => sum + score.percentage, 0) / recentScores.length)
     : 0;
 
-  const projectedUTMEScore = Math.round(200 + (averageScore / 100) * 200);
+  const projectedUTMEScore = recentScores?.length > 0 
+    ? Math.round(200 + (averageScore / 100) * 200)
+    : null;
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 8 }}>
+            Loading mock exams...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ fontSize: 16, color: '#EF4444', textAlign: 'center' }}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            onPress={() => fetchMockExams()}
+            style={{
+              backgroundColor: '#3B82F6',
+              borderRadius: 8,
+              padding: 12,
+              marginTop: 16
+            }}
+          >
+            <Text style={{ color: 'white', fontWeight: '500' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
@@ -94,7 +163,7 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
               <View style={{ flex: 1, alignItems: 'center' }}>
                 <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#3B82F6', marginBottom: 4 }}>
-                  {projectedUTMEScore}
+                  {projectedUTMEScore ?? 'N/A'}
                 </Text>
                 <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
                   Projected UTME Score
@@ -105,7 +174,7 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
               
               <View style={{ flex: 1, alignItems: 'center' }}>
                 <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#10B981', marginBottom: 4 }}>
-                  {averageScore}%
+                  {averageScore}%{recentScores?.length === 0 && ' (No scores yet)'}
                 </Text>
                 <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
                   Average Score
@@ -113,7 +182,7 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
               </View>
             </View>
 
-            {user?.goalScore && (
+            {user?.goalScore && projectedUTMEScore !== null && (
               <View style={{ 
                 backgroundColor: projectedUTMEScore >= user.goalScore ? '#F0FDF4' : '#FEF3C7',
                 padding: 12,
@@ -140,6 +209,53 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
               Quick Start
             </Text>
             
+            {incompleteExam && (
+              <TouchableOpacity
+                onPress={handleResumeExam}
+                style={{
+                  backgroundColor: '#10B981',
+                  borderRadius: 16,
+                  padding: 20,
+                  marginBottom: 12,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 3,
+                  elevation: 2
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: 30,
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    marginRight: 16
+                  }}>
+                    <Text style={{ fontSize: 28 }}>🔄</Text>
+                  </View>
+                  
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 18, fontWeight: '600', color: 'white', marginBottom: 4 }}>
+                      Resume {incompleteExam.type === 'FULL_UTME' ? 'Full UTME' : incompleteExam.subjects[0]} Exam
+                    </Text>
+                    <Text style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 8 }}>
+                      {incompleteExam.questions.length} questions • {incompleteExam.timeLimit} minutes
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.8)' }}>
+                        ⏰ Progress Saved
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <Text style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: 20 }}>→</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               onPress={handleStartFullMock}
               style={{
@@ -186,7 +302,7 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => navigation.navigate('QuickMockSetup')}
+              onPress={handleStartQuickMock}
               style={{
                 backgroundColor: 'white',
                 borderRadius: 12,
@@ -211,23 +327,25 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
           </View>
 
           {/* Subject-Specific Mocks */}
-          <View style={{ marginBottom: 24 }}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 16 }}>
-              Subject Practice
-            </Text>
-            
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row', gap: 16 }}>
-                {user?.selectedSubjects?.map((subject) => (
-                  <SubjectMockCard
-                    key={subject}
-                    subject={subject}
-                    onPress={() => handleStartSubjectMock(subject)}
-                  />
-                ))}
-              </View>
-            </ScrollView>
-          </View>
+          {user?.selectedSubjects && user.selectedSubjects.length > 0 && (
+            <View style={{ marginBottom: 24 }}>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 16 }}>
+                Subject Practice
+              </Text>
+              
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 16 }}>
+                  {user.selectedSubjects.map((subject) => (
+                    <SubjectMockCard
+                      key={subject}
+                      subject={subject}
+                      onPress={() => handleStartSubjectMock(subject)}
+                    />
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          )}
 
           {/* Recent Mock Results */}
           {recentScores && recentScores.length > 0 && (
@@ -244,7 +362,7 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
               </View>
               
               <View style={{ gap: 12 }}>
-                {recentScores.slice(0, 3).map((score: any, index: number) => (
+                {recentScores.slice(0, 3).map((score: RecentScore, index: number) => (
                   <MockResultCard key={index} result={score} />
                 ))}
               </View>
@@ -274,7 +392,7 @@ const SubjectMockCard: React.FC<SubjectMockCardProps> = ({ subject, onPress }) =
       economics: '💰',
       government: '🏛️'
     };
-    return icons[subj] || '📋';
+    return icons[subj.toLowerCase()] || '📋';
   };
 
   return (
@@ -325,7 +443,7 @@ const SubjectMockCard: React.FC<SubjectMockCardProps> = ({ subject, onPress }) =
 
 // Mock Result Card Component
 interface MockResultCardProps {
-  result: any;
+  result: RecentScore;
 }
 
 const MockResultCard: React.FC<MockResultCardProps> = ({ result }) => {
@@ -364,10 +482,10 @@ const MockResultCard: React.FC<MockResultCardProps> = ({ result }) => {
       
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 14, fontWeight: '500', color: '#1F2937', marginBottom: 2 }}>
-          {result.examType === 'full_utme' ? 'Full UTME Mock' : `${result.subject} Mock`}
+          {result.examType === 'FULL_UTME' ? 'Full UTME Mock' : `${result.subject} Mock`}
         </Text>
         <Text style={{ fontSize: 12, color: '#6B7280' }}>
-          {result.correctAnswers}/{result.totalQuestions} correct • {formatRelativeTime(result.completedAt)}
+          {result.correctAnswers}/{result.questionCount} correct • {formatRelativeTime(result.completedAt)}
         </Text>
       </View>
       
@@ -378,13 +496,18 @@ const MockResultCard: React.FC<MockResultCardProps> = ({ result }) => {
 
 // Helper function
 const formatRelativeTime = (date: string | Date) => {
-  const now = new Date();
-  const past = new Date(date);
-  const diffInHours = (now.getTime() - past.getTime()) / (1000 * 60 * 60);
-  
-  if (diffInHours < 1) return 'Just now';
-  if (diffInHours < 24) return `${Math.floor(diffInHours)}h ago`;
-  const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) return `${diffInDays}d ago`;
-  return `${Math.floor(diffInDays / 7)}w ago`;
+  try {
+    const now = new Date();
+    const past = new Date(date);
+    const diffInHours = (now.getTime() - past.getTime()) / (1000 * 60 * 60);
+    
+    if (isNaN(diffInHours)) return 'Unknown time';
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${Math.floor(diffInHours)}h ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    return `${Math.floor(diffInDays / 7)}w ago`;
+  } catch {
+    return 'Unknown time';
+  }
 };
