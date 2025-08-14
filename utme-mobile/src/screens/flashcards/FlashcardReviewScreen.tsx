@@ -64,11 +64,21 @@ export const FlashcardReviewScreen: React.FC<FlashcardReviewScreenProps> = ({ na
           navigation.navigate('FlashcardResults');
         }
       });
-    } catch (error) {
-      Alert.alert('Error', error.response?.data?.error || 'Failed to submit response. Please try again.');
-      console.error('Failed to submit flashcard attempt:', error);
-    }
-  };
+      } catch (error) {
+        let message = 'Failed to submit response. Please try again.';
+
+        if (error && typeof error === 'object' && 'response' in error) {
+          const err = error as { response?: { data?: { error?: string } } };
+          message = err.response?.data?.error || message;
+        } else if (error instanceof Error) {
+          message = error.message;
+        }
+
+        Alert.alert('Error', message);
+        console.error('Failed to submit flashcard attempt:', error);
+      }
+
+        };
 
   const frontInterpolate = flipAnimation.interpolate({
     inputRange: [0, 1],

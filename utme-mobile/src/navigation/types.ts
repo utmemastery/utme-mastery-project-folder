@@ -8,6 +8,8 @@ export type AuthStackParamList = {
   EmailVerification: EmailVerificationParams;
   ForgotPassword: undefined;
   ResetPassword: { token: string };
+  Onboarding: undefined;
+  MainTabs: undefined;
 };
 
 export type RootStackParamList = {
@@ -20,4 +22,12 @@ export type RootStackParamList = {
   DiagnosticAssessment: { selectedSubjects: string[]; aspiringCourse: string; goalScore: number; learningStyle: string };
   AssessmentResults: { subjectProficiency: Array<{ subject: string; proficiency: number }>; goalScore: number; aspiringCourse: string };
   MainTabs: undefined;
+};
+
+// types/navigation.ts
+export type MockExamStackParamList = {
+  MockExamHome: undefined;
+  MockExamSession: undefined; // example param
+  MockExamResult: { examId: number };
+  MockExamHistory: undefined;
 };

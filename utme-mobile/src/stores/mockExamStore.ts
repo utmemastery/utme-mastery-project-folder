@@ -58,6 +58,7 @@ export interface MockExamResult {
     selectedAnswer: number | null;
     correctAnswer: number;
     isCorrect: boolean;
+    optionIds: number[];
     subject: string;
     topic: string | null;
     explanation: string | null;

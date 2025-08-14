@@ -11,7 +11,6 @@ interface Question {
   explanation: string;
   difficulty: 'EASY' | 'MEDIUM' | 'HARD';
   cognitiveLevel: 'RECALL' | 'COMPREHENSION' | 'APPLICATION' | 'ANALYSIS' | 'SYNTHESIS' | 'EVALUATION';
-  yearAsked?: number;
   tags?: string[];
 }
 

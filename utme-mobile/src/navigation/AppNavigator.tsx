@@ -12,12 +12,12 @@ import { LoadingScreen } from '../screens/LoadingScreen';
 const Stack = createStackNavigator();
 
 export const AppNavigator = () => {
-  const { user, isAuthenticated, isLoading, checkAuthState } = useAuthStore();
+  const { user, isAuthenticated, isLoading, initializeAuth } = useAuthStore();
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
     const initializeApp = async () => {
-      await checkAuthState();
+      await initializeAuth();
       setIsInitializing(false);
     };
 
