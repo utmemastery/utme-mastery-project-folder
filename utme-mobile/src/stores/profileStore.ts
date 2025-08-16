@@ -30,9 +30,7 @@ interface ProfileStats {
 }
 
 interface ProfileStore {
-  profile++
-
-System: : ProfileData | null;
+  profile: ProfileData | null;
   stats: ProfileStats | null;
   isLoading: boolean;
   error: string | null;
@@ -51,6 +49,7 @@ System: : ProfileData | null;
   exportData: () => Promise<any>;
   clearError: () => void;
 }
+
 
 export const useProfileStore = create<ProfileStore>((set, get) => ({
   profile: null,

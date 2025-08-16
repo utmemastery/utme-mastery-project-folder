@@ -120,26 +120,25 @@ export class AuthService {
     }
 
     // Helper function to parse expire string or number to valid jwt expiresIn type
-    function parseExpire(expire?: string): number | JwtTimeString | undefined {
-      const defaultExpire: JwtTimeString = '7d';
+function parseExpire(expire?: string): SignOptions["expiresIn"] {
+  const defaultExpire: SignOptions["expiresIn"] = '7d';
 
-      if (!expire) return defaultExpire;
+  if (!expire) return defaultExpire;
 
-      const regex = /^(\d+)([smhdwy])$/;
-      const match = expire.match(regex);
+  const regex = /^(\d+)([smhdwy])$/;
+  const match = expire.match(regex);
 
-      if (match) {
-        const timeString = match[0] as JwtTimeString; // Full match (e.g., '7d')
-        return timeString;
-      }
+  if (match) {
+    return match[0] as SignOptions["expiresIn"]; // e.g., '7d'
+  }
 
-      const num = Number(expire);
-      if (!isNaN(num) && num > 0) {
-        return num; // Valid number in seconds
-      }
+  const num = Number(expire);
+  if (!isNaN(num) && num > 0) {
+    return num;
+  }
 
-      return defaultExpire; // Fallback to default
-    }
+  return defaultExpire;
+}
     const JWT_EXPIRE = parseExpire(JWT_EXPIRE_ENV);
 
     const signOptions: SignOptions = {

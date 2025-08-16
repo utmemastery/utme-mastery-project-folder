@@ -9,15 +9,15 @@ import { RootStackParamList } from '../../navigation/types';
 interface SubjectSelectionScreenProps extends NativeStackScreenProps<RootStackParamList, 'SubjectSelection'> {}
 
 const UTME_SUBJECTS = [
-  { id: 'english', name: 'English Language', icon: '📚', required: true },
-  { id: 'mathematics', name: 'Mathematics', icon: '🔢', required: true },
+  { id: 'english', name: 'Use of english', icon: '📚', required: true },
+  { id: 'mathematics', name: 'Mathematics', icon: '🔢', category: 'Science' },
   { id: 'physics', name: 'Physics', icon: '⚛️', category: 'Science' },
   { id: 'chemistry', name: 'Chemistry', icon: '🧪', category: 'Science' },
   { id: 'biology', name: 'Biology', icon: '🧬', category: 'Science' },
   { id: 'geography', name: 'Geography', icon: '🌍', category: 'Social Science' },
   { id: 'economics', name: 'Economics', icon: '💰', category: 'Social Science' },
   { id: 'government', name: 'Government', icon: '🏛️', category: 'Social Science' },
-  { id: 'literature', name: 'Literature in English', icon: '📖', category: 'Arts' },
+  { id: 'literature', name: 'Literature in english', icon: '📖', category: 'Arts' },
   { id: 'history', name: 'History', icon: '📜', category: 'Arts' },
   { id: 'crs', name: 'Christian Religious Studies', icon: '✝️', category: 'Arts' },
   { id: 'irs', name: 'Islamic Religious Studies', icon: '☪️', category: 'Arts' },
@@ -27,7 +27,7 @@ const UTME_SUBJECTS = [
 ];
 
 export const SubjectSelectionScreen: React.FC<SubjectSelectionScreenProps> = ({ navigation }) => {
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>(['english', 'mathematics']);
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>(['english']);
 
   const toggleSubject = (subjectId: string) => {
     const subject = UTME_SUBJECTS.find(s => s.id === subjectId);
@@ -84,7 +84,7 @@ export const SubjectSelectionScreen: React.FC<SubjectSelectionScreenProps> = ({ 
           </Text>
           <Text style={{ fontSize: 16, color: '#6B7280', lineHeight: 24 }}>
             Select 4 subjects for your UTME preparation.{'\n'}
-            English and Mathematics are required.
+            english is required.
           </Text>
           <View style={{ 
             backgroundColor: '#EFF6FF', 

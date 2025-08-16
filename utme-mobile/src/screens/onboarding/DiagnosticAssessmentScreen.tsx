@@ -8,28 +8,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 
-// 🔹 Define the shape of a question
 interface DiagnosticQuestion {
   id: number;
   question: string;
   options: string[];
-  correctAnswer: number; // index in `options`
+  correctAnswer: number;
   difficulty: string;
 }
 
-// 🔹 Shape of answers stored for each subject
 interface QuestionAnswer {
   questionId: number;
   selectedAnswer: number;
   isCorrect: boolean;
-  timeSpent: number; // seconds
+  timeSpent: number;
 }
 
-// 🔹 Props for this screen
 interface DiagnosticAssessmentScreenProps
   extends NativeStackScreenProps<RootStackParamList, 'DiagnosticAssessment'> {}
 
-// 🔹 Mock questions
 const DIAGNOSTIC_QUESTIONS: Record<string, DiagnosticQuestion[]> = {
   english: [
     {
@@ -59,49 +55,41 @@ const DIAGNOSTIC_QUESTIONS: Record<string, DiagnosticQuestion[]> = {
   history: [{ id: 10, question: "Placeholder history question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
   crs: [{ id: 11, question: "Placeholder CRS question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
   irs: [{ id: 12, question: "Placeholder IRS question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
-  yoruba: [{ id: 13, question: "Placeholder Yoruba question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
-  hausa: [{ id: 14, question: "Placeholder Hausa question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
-  igbo: [{ id: 15, question: "Placeholder Igbo question", options: ['A', 'B', 'C', 'D'], correctAnswer: 0, difficulty: 'easy' }],
 };
 
 export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProps> = ({
   navigation,
-  route
+  route,
 }) => {
   const { selectedSubjects, aspiringCourse, goalScore, learningStyle } = route.params;
-  const { updateProfile, isLoading } = useAuthStore();
-
+  const { updateProfile } = useAuthStore();
   const [currentSubjectIndex, setCurrentSubjectIndex] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [answers, setAnswers] = useState<Record<string, QuestionAnswer[]>>({});
-  const [isCompleted, setIsCompleted] = useState(false);
-  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [subjectQuestions, setSubjectQuestions] = useState<DiagnosticQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<string, QuestionAnswer[]>>({});
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const maxRetries = 3;
 
   const currentSubject = selectedSubjects[currentSubjectIndex];
   const currentQuestion = subjectQuestions[currentQuestionIndex];
 
-  const totalQuestions = selectedSubjects.reduce((total, subject) => {
-    return total + (DIAGNOSTIC_QUESTIONS[subject]?.length || 0);
-  }, 0);
-  const completedQuestions = Object.values(answers).flat().length;
+  const saveProgress = async (currentAnswers: Record<string, QuestionAnswer[]>) => {
+    await AsyncStorage.setItem('assessmentProgress', JSON.stringify({
+      currentSubjectIndex,
+      currentQuestionIndex,
+      answers: currentAnswers,
+      selectedSubjects,
+      aspiringCourse,
+      goalScore,
+      learningStyle
+    }));
+  };
 
-  // Initialize answers object
   useEffect(() => {
-    const initialAnswers: Record<string, QuestionAnswer[]> = {};
-    selectedSubjects.forEach(subject => {
-      initialAnswers[subject] = [];
-    });
-    setAnswers(initialAnswers);
-  }, [selectedSubjects]);
-
-  // Fetch questions for the current subject
-  useEffect(() => {
-    const fetchQuestions = async () => {
-      setIsLoadingQuestions(true);
+    const loadQuestions = async () => {
+      setIsLoading(true);
       try {
         const response = await api.get<{ questions: DiagnosticQuestion[] }>(
           `/questions/diagnostic/${currentSubject}`
@@ -123,46 +111,53 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
           }
         }
       } catch {
-        const fallbackQuestions = DIAGNOSTIC_QUESTIONS[currentSubject] || [];
+        const cached = await AsyncStorage.getItem(`questions_${currentSubject}`);
+        const fallbackQuestions: DiagnosticQuestion[] = cached
+          ? JSON.parse(cached)
+          : DIAGNOSTIC_QUESTIONS[currentSubject] || [];
         if (fallbackQuestions.length === 0) {
           Alert.alert('No Questions Available', `No diagnostic questions for ${currentSubject}. Skipping to next subject.`);
           handleNextSubject();
         } else {
           setSubjectQuestions(fallbackQuestions);
         }
-      } finally {
-        setIsLoadingQuestions(false);
       }
+      setIsLoading(false);
     };
-    fetchQuestions();
+
+    loadQuestions();
   }, [currentSubject]);
+
+  const handleAnswerSelect = (index: number) => {
+    setSelectedAnswer(index);
+  };
 
   const handleNextSubject = () => {
     if (currentSubjectIndex < selectedSubjects.length - 1) {
       setCurrentSubjectIndex(prev => prev + 1);
       setCurrentQuestionIndex(0);
       setSelectedAnswer(null);
+      setSubjectQuestions([]);
     } else {
-      setIsCompleted(true);
       handleCompleteAssessment(answers);
     }
   };
 
-  const handleAnswerSelect = (answerIndex: number) => {
-    setSelectedAnswer(answerIndex);
-  };
-
-  const handleNextQuestion = () => {
+  const handleNextQuestion = async () => {
     if (selectedAnswer === null) return;
 
     const newAnswers = { ...answers };
+    if (!newAnswers[currentSubject]) {
+      newAnswers[currentSubject] = [];
+    }
     newAnswers[currentSubject].push({
       questionId: currentQuestion.id,
       selectedAnswer,
       isCorrect: selectedAnswer === currentQuestion.correctAnswer,
-      timeSpent: 30
+      timeSpent: 30 // Placeholder
     });
     setAnswers(newAnswers);
+    await saveProgress(newAnswers);
 
     if (currentQuestionIndex < subjectQuestions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
@@ -170,10 +165,6 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
     } else {
       handleNextSubject();
     }
-  };
-
-  const saveProgress = async (finalAnswers: Record<string, QuestionAnswer[]>) => {
-    await AsyncStorage.setItem('assessmentProgress', JSON.stringify(finalAnswers));
   };
 
   const handleCompleteAssessment = async (finalAnswers: Record<string, QuestionAnswer[]>) => {
@@ -187,15 +178,15 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
     try {
       const subjectProficiency = selectedSubjects.map(subject => {
         const subjectAnswers = finalAnswers[subject];
-        const correct = subjectAnswers.filter(a => a.isCorrect).length;
-        const total = subjectAnswers.length;
+        const correct = subjectAnswers?.filter(a => a.isCorrect).length || 0;
+        const total = subjectAnswers?.length || 0;
         return {
           subject,
           proficiency: total > 0 ? (correct / total) * 100 : 0
         };
       });
 
-      await updateProfile({
+      console.log('Updating profile with:', {
         selectedSubjects,
         aspiringCourse,
         goalScore,
@@ -204,43 +195,54 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
         onboardingDone: true
       });
 
-      navigation.replace('AssessmentResults', {
-        subjectProficiency,
-        goalScore,
-        aspiringCourse
+      // Clear onboarding progress first
+      await AsyncStorage.removeItem('onboardingProgress');
+      await AsyncStorage.removeItem('assessmentProgress');
+      console.log('Cleared onboarding and assessment progress from AsyncStorage');
+
+      // Navigate to AssessmentResults before updating profile
+      console.log('Navigating to AssessmentResults with params:', { subjectProficiency, goalScore, aspiringCourse });
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'Onboarding',
+            params: {
+              screen: 'AssessmentResults',
+              params: { subjectProficiency, goalScore, aspiringCourse }
+            }
+          }
+        ]
       });
-    } catch {
-      setRetryCount(prev => prev + 1);
-      Alert.alert('Error', 'Failed to complete assessment. Please try again.', [
-        { text: 'Retry', onPress: () => handleCompleteAssessment(finalAnswers) },
-        { text: 'Back', onPress: () => navigation.goBack() }
-      ]);
-    }
+
+      // Update profile after navigation
+      await updateProfile({
+        selectedSubjects,
+        aspiringCourse,
+        goalScore,
+        learningStyle,
+        diagnosticResults: subjectProficiency,
+        onboardingDone: true
+      });
+    } catch (error: unknown) {
+  console.error('Update profile error:', error);
+
+  const errorMessage = error instanceof Error ? error.message : String(error);
+
+  setRetryCount(prev => prev + 1);
+  Alert.alert('Error', `Failed to complete assessment: ${errorMessage}. Please try again.`, [
+    { text: 'Retry', onPress: () => handleCompleteAssessment(finalAnswers) },
+    { text: 'Back', onPress: () => navigation.goBack() }
+  ]);
+}
+
   };
 
-  if (isCompleted) {
+  if (isLoading || !currentQuestion) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <Text style={{ fontSize: 48, marginBottom: 24 }}>🎉</Text>
-          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
-            Assessment Complete!
-          </Text>
-          <Text style={{ fontSize: 16, color: '#6B7280', textAlign: 'center' }}>
-            Analyzing your results and creating your personalized study plan...
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (isLoadingQuestions || !currentQuestion) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <Text style={{ fontSize: 18, color: '#6B7280' }}>
-            {isLoadingQuestions ? 'Loading questions...' : 'No questions available for this subject.'}
-          </Text>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text>Loading...</Text>
         </View>
       </SafeAreaView>
     );
@@ -249,24 +251,12 @@ export const DiagnosticAssessmentScreen: React.FC<DiagnosticAssessmentScreenProp
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <View style={{ flex: 1 }}>
-        <View style={{ padding: 24, paddingBottom: 16 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-            <Text style={{ fontSize: 14, color: '#6B7280' }}>Diagnostic Assessment</Text>
-            <Text style={{ fontSize: 14, color: '#6B7280' }}>
-              {completedQuestions + 1}/{totalQuestions}
-            </Text>
-          </View>
-          <View style={{ height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, overflow: 'hidden' }}>
-            <View
-              style={{
-                height: '100%',
-                backgroundColor: '#3B82F6',
-                width: `${((completedQuestions + 1) / totalQuestions) * 100}%`
-              }}
-            />
-          </View>
+        <View style={{ padding: 24, alignItems: 'center' }}>
+          <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 8 }}>
+            Question {currentQuestionIndex + 1} of {subjectQuestions.length}
+          </Text>
           <Text style={{
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: '600',
             color: '#1F2937',
             marginTop: 16,

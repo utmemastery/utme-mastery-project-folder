@@ -14,22 +14,20 @@ const api = axios.create({
 });
 
 // Request interceptor → Add Bearer token from SecureStore
+// Request interceptor → Add Bearer token from SecureStore
 api.interceptors.request.use(
   async (config) => {
-    try {
-      const token = await SecureStore.getItemAsync('authToken');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    } catch (error) {
-      console.error('Error retrieving auth token:', error);
+    const token = await SecureStore.getItemAsync('authToken');
+    if (token && config.headers) {
+      // Correct way: directly assign to object
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
+
+
 
 // Response interceptor → Handle errors globally
 api.interceptors.response.use(

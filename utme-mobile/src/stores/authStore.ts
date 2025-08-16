@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import * as Sentry from '@sentry/react-native';
 import { AuthService, User, RegisterData } from '../services/authService';
 import api from '../services/api';
+import { useProfileStore } from './profileStore';
 
 interface AuthState {
   user: User | null;
@@ -9,7 +10,6 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
 
-  // Actions
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
@@ -32,6 +32,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { user } = await AuthService.login({ email, password });
       set({ user, isAuthenticated: true, isLoading: false });
+      await useProfileStore.getState().fetchProfile();
     } catch (error: any) {
       Sentry.captureException(error);
       set({ error: error.message || 'Login failed', isLoading: false });
@@ -44,6 +45,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const user = await AuthService.register(data);
       set({ user, isAuthenticated: true, isLoading: false });
+      await useProfileStore.getState().fetchProfile();
     } catch (error: any) {
       Sentry.captureException(error);
       set({ error: error.message || 'Registration failed', isLoading: false });
@@ -56,6 +58,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await AuthService.logout();
       set({ user: null, isAuthenticated: false, isLoading: false });
+      useProfileStore.getState().deleteAccount();
     } catch (error: any) {
       Sentry.captureException(error);
       set({ error: error.message || 'Logout failed', isLoading: false });
@@ -72,6 +75,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           user: { ...get().user!, emailVerified: true },
           isLoading: false,
         });
+        await useProfileStore.getState().fetchProfile();
       } else {
         set({ isLoading: false });
       }
@@ -110,7 +114,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await api.put('/user/profile', data);
-      set({ user: response.data.user, isLoading: false });
+      const currentUser = get().user;
+      const updatedUser = {
+        ...currentUser,
+        ...response.data.user,
+        onboardingDone: data.onboardingDone ?? response.data.user.onboardingDone ?? currentUser?.onboardingDone ?? false,
+        selectedSubjects: data.selectedSubjects ?? response.data.user.selectedSubjects ?? currentUser?.selectedSubjects,
+        aspiringCourse: data.aspiringCourse ?? response.data.user.aspiringCourse ?? currentUser?.aspiringCourse,
+        goalScore: data.goalScore ?? response.data.user.goalScore ?? currentUser?.goalScore,
+        learningStyle: data.learningStyle ?? response.data.user.learningStyle ?? currentUser?.learningStyle,
+        diagnosticResults: data.diagnosticResults ?? response.data.user.diagnosticResults ?? currentUser?.diagnosticResults
+      };
+      set({ user: updatedUser, isLoading: false });
+      console.log('Updated user state:', updatedUser);
+      await useProfileStore.getState().fetchProfile();
     } catch (error: any) {
       Sentry.captureException(error);
       set({ error: error.message || 'Profile update failed', isLoading: false });
@@ -124,6 +141,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const isAuth = await AuthService.isAuthenticated();
       const user = await AuthService.getCurrentUser();
       set({ isAuthenticated: isAuth, user, isLoading: false });
+      if (isAuth && user) {
+        await useProfileStore.getState().fetchProfile();
+      }
     } catch (error: any) {
       Sentry.captureException(error);
       set({ isAuthenticated: false, user: null, isLoading: false });

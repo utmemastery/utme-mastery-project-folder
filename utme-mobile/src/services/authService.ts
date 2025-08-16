@@ -25,6 +25,10 @@ export interface User {
   aspiringCourse?: string;
   goalScore?: number;
   learningStyle?: string;
+  diagnosticResults?: {
+    subject: string;
+    proficiency: number;
+  }[];
   onboardingDone: boolean;
   emailVerified: boolean;
   role: string;

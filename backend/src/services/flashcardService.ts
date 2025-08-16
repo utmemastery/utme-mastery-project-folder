@@ -52,22 +52,22 @@ export class FlashcardService {
       where: {
         subjectId: { in: subjectIds }
       },
-      include: {
-        FlashcardReview: {
-          where: { userId },
-          orderBy: { createdAt: 'desc' },
-          take: 1
+        include: {
+          reviews: {
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          },
+          subject: { select: { name: true } },
+          topic: { select: { name: true } }
         },
-        subject: { select: { name: true } }, // Include subject name
-        topic: { select: { name: true } }    // Include topic name
-      },
       take: limit
     });
 
     // Filter for due flashcards (spaced repetition)
     const now = new Date();
     const dueFlashcards = flashcards.filter(f => {
-      const lastReview = f.FlashcardReview[0];
+      const lastReview = f.reviews[0];
       if (!lastReview) return true;
       if (!lastReview.nextReview) return true;
       return lastReview.nextReview <= now;
@@ -79,7 +79,7 @@ export class FlashcardService {
       include: { flashcard: true }
     });
     const reviewStats = {
-      newCards: flashcards.filter(f => !f.FlashcardReview.length).length,
+      newCards: flashcards.filter(f => !f.reviews.length).length,
       masteredCards: reviews.filter(r => r.easeFactor > 2.5 && r.recallSuccess).length,
       learningCards: reviews.filter(r => r.easeFactor <= 2.5 || !r.recallSuccess).length,
       recentSessions: [] // Placeholder; implement session grouping if needed
@@ -185,7 +185,7 @@ export class FlashcardService {
         tags: cardData.tags || [],
         difficulty: cardData.difficulty,
         mediaUrl: cardData.mediaUrl,
-        createdByUserId: userId
+        createdById: userId
       }
     });
 

@@ -4,39 +4,53 @@ import { v4 as uuidv4 } from 'uuid';
 const prisma = new PrismaClient();
 
 export class PracticeService {
-  static async startSession(userId: number, {
+  static async startSession(
+  userId: number,
+  {
     subject,
     topics,
     difficulty,
-    questionCount = 10
+    questionCount = 10,
+    sessionType = PracticeSessionType.PRACTICE, // default session type
   }: {
     subject: string;
     topics?: string[];
     difficulty?: string;
     questionCount?: number;
-  }) {
-    const subjectObj = await prisma.subject.findUnique({ where: { name: subject } });
-    if (!subjectObj) throw new Error('Invalid subject');
-    const topicIds = topics ? await Promise.all(
-      topics.map(async (topic) => {
-        const topicObj = await prisma.topic.findUnique({ where: { name: topic } });
-        if (!topicObj) throw new Error(`Invalid topic: ${topic}`);
-        return topicObj.id;
-      })
-    ) : [];
-    const session = await prisma.practiceSession.create({
-      data: {
-        id: `session_${Date.now()}`,
-        userId,
-        subjectId: subjectObj.id,
-        difficulty: difficulty?.toUpperCase() as DifficultyLevel,
-        questionCount,
-        startTime: new Date(),
-        topics: topicIds.length > 0 ? { create: topicIds.map(id => ({ topicId: id })) } : undefined
-      }
-    });
-    return session;
+    sessionType?: PracticeSessionType; // optional parameter
   }
+) {
+  // Find subject
+  const subjectObj = await prisma.subject.findUnique({ where: { name: subject } });
+  if (!subjectObj) throw new Error('Invalid subject');
+
+  // Resolve topic IDs if topics provided
+  const topicIds = topics
+    ? await Promise.all(
+        topics.map(async (topic) => {
+          const topicObj = await prisma.topic.findUnique({ where: { name: topic } });
+          if (!topicObj) throw new Error(`Invalid topic: ${topic}`);
+          return topicObj.id;
+        })
+      )
+    : [];
+
+  // Create session
+  const session = await prisma.practiceSession.create({
+    data: {
+      id: `session_${Date.now()}`,
+      userId,
+      subjectId: subjectObj.id,
+      difficulty: difficulty?.toUpperCase() as DifficultyLevel,
+      questionCount,
+      startTime: new Date(),
+      sessionType, // ✅ added required field
+      topics: topicIds.length > 0 ? { create: topicIds.map((id) => ({ topicId: id })) } : undefined,
+    },
+  });
+
+  return session;
+}
 
   static async generateQuestions(userId: number, {
     subject,
@@ -73,7 +87,7 @@ export class PracticeService {
     const questions = await prisma.question.findMany({
       where: whereClause,
       take: count,
-      include: { options: true }
+      include: { options: true, topic: true }
     });
     return questions.map(q => ({
       id: q.id,
@@ -84,7 +98,6 @@ export class PracticeService {
       explanation: q.explanation || '',
       difficulty: q.difficulty,
       cognitiveLevel: q.cognitiveLevel,
-      yearAsked: q.yearAsked,
       tags: q.tags
     }));
   }
@@ -189,7 +202,7 @@ export class PracticeService {
         weakTopics
       };
     }));
-    return Object.fromEntries(subjectData.filter(Boolean).map(data => [data.subject, data]));
+    return Object.fromEntries(subjectData.filter(Boolean).map(data => [data?.subject, data]));
   }
 
 
@@ -199,13 +212,13 @@ export class PracticeService {
     if (!subjectObj) throw new Error('Invalid subject');
     const passages = await prisma.passage.findMany({
       where: { subjectId: subjectObj.id },
-      include: { questions: { include: { options: true } } }
+      include: { questions: { include: { options: true, topic: true } } }
     });
     return passages.map(p => ({
       id: p.id,
       subject: subjectObj.name,
       text: p.text,
-      type: p.type,
+      type: p.passageType,
       questions: p.questions.map(q => ({
         id: q.id,
         subject: subjectObj.name,
@@ -215,60 +228,83 @@ export class PracticeService {
         explanation: q.explanation || '',
         difficulty: q.difficulty,
         cognitiveLevel: q.cognitiveLevel,
-        yearAsked: q.yearAsked,
         tags: q.tags
       }))
     }));
   }
 
-  static async syncOfflineData(userId: number, {
+static async syncOfflineData(
+  userId: number,
+  {
     resourceType,
     resourceId,
     action,
     data
   }: {
     resourceType: string;
-    resourceId: string;
+    resourceId: string; // received from client
     action: string;
     data: any;
-  }) {
-    if (resourceType === 'PracticeSession') {
-      if (action === 'CREATE') {
-        await prisma.practiceSession.create({
-          data: {
-            id: data.id,
-            userId,
-            subjectId: (await prisma.subject.findUnique({ where: { name: data.subject } }))!.id,
-            topicId: data.topics?.length > 0 ? (await prisma.topic.findUnique({ where: { name: data.topics[0] } }))?.id : undefined,
-            difficulty: data.difficulty,
-            questionCount: data.questionCount,
-            startTime: new Date(data.startTime),
-            endTime: data.endTime ? new Date(data.endTime) : undefined,
-            sessionType: data.sessionType,
-            answeredCount: data.attempts.length,
-            correctCount: data.attempts.filter(a => a.isCorrect).length
-          }
-        });
-      } else if (action === 'UPDATE') {
-        await prisma.practiceSession.update({
-          where: { id: resourceId },
-          data: {
-            endTime: data.endTime ? new Date(data.endTime) : undefined,
-            answeredCount: data.attempts.length,
-            correctCount: data.attempts.filter(a => a.isCorrect).length
-          }
-        });
+  }
+) {
+  // Convert resourceId to number only for offlineSync
+  const numericResourceId = Number(resourceId);
+  if (isNaN(numericResourceId)) {
+    throw new Error(`Invalid resourceId for offlineSync: ${resourceId}`);
+  }
+
+  if (resourceType === 'PracticeSession') {
+    if (action === 'CREATE') {
+      // Ensure subject exists
+      const subject = await prisma.subject.findUnique({ where: { name: data.subject } });
+      if (!subject) throw new Error(`Subject not found: ${data.subject}`);
+
+      // Get first topic ID if topics exist
+      let topicId: number | undefined;
+      if (data.topics?.length > 0) {
+        const topic = await prisma.topic.findUnique({ where: { name: data.topics[0] } });
+        topicId = topic?.id;
       }
-      await prisma.offlineSync.create({
+
+      await prisma.practiceSession.create({
         data: {
+          id: data.id, // Keep string
           userId,
-          resourceType,
-          resourceId,
-          action,
-          data: data,
-          lastSyncedAt: new Date()
+          subjectId: subject.id,
+          topicId,
+          difficulty: data.difficulty,
+          questionCount: data.questionCount,
+          startTime: new Date(data.startTime),
+          endTime: data.endTime ? new Date(data.endTime) : undefined,
+          sessionType: data.sessionType,
+          answeredCount: data.attempts?.length ?? 0,
+          correctCount: data.attempts?.filter((a: any) => a.isCorrect).length ?? 0
+        }
+      });
+    } else if (action === 'UPDATE') {
+      // Update PracticeSession using string id
+      await prisma.practiceSession.update({
+        where: { id: resourceId }, // string
+        data: {
+          endTime: data.endTime ? new Date(data.endTime) : undefined,
+          answeredCount: data.attempts?.length ?? 0,
+          correctCount: data.attempts?.filter((a: any) => a.isCorrect).length ?? 0
         }
       });
     }
+
+    // Create offline sync entry using numeric resourceId
+    await prisma.offlineSync.create({
+      data: {
+        userId,
+        resourceType,
+        resourceId: numericResourceId, // number
+        action,
+        data,
+        lastSyncedAt: new Date()
+      }
+    });
   }
+}
+
 }

@@ -22,6 +22,7 @@ export type RootStackParamList = {
   DiagnosticAssessment: { selectedSubjects: string[]; aspiringCourse: string; goalScore: number; learningStyle: string };
   AssessmentResults: { subjectProficiency: Array<{ subject: string; proficiency: number }>; goalScore: number; aspiringCourse: string };
   MainTabs: undefined;
+  Onboarding: undefined;
 };
 
 // types/navigation.ts

@@ -3,14 +3,19 @@ import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
+interface UserAnswer {
+  selectedOptionId: number;
+}
+
 interface MockExamQuestion {
   id: number;
   questionId: number;
   sectionId?: number;
   isCorrect?: boolean;
   responseTime?: number;
-  userAnswer?: any; // JSON type for userAnswer
+  userAnswer?: UserAnswer | null;
 }
+
 
 interface CreateMockExamData {
   userId: number;
@@ -133,33 +138,48 @@ export class MockExamService {
     }
 
     // Create the mock exam
-    const mockExam = await prisma.mockExam.create({
-      data: {
-        userId: data.userId,
-        title: data.title,
-        description: data.description,
-        examType: data.examType,
-        timeLimit: data.timeLimit,
-        startTime: data.startTime,
-        status: MockExamStatus.IN_PROGRESS,
-        questionCount: data.questions.length,
-        mockExamSubjects: {
-          create: subjectRecords.map(subject => ({
-            subjectId: subject.id
-          }))
-        },
-        questions: {
-          create: data.questions.map(q => ({
-            questionId: q.questionId,
-            sectionId: q.sectionId
-          }))
-        }
-      },
+const mockExam = await prisma.mockExam.create({
+  data: {
+    userId: data.userId,
+    title: data.title,
+    description: data.description,
+    examType: data.examType,
+    timeLimit: data.timeLimit,
+    startTime: data.startTime,
+    status: MockExamStatus.IN_PROGRESS,
+    questionCount: data.questions.length,
+    mockExamSubjects: {
+      create: subjectRecords.map(subject => ({
+        subjectId: subject.id
+      }))
+    },
+    questions: {
+      create: data.questions.map(q => ({
+        questionId: q.questionId,
+        sectionId: q.sectionId
+      }))
+    }
+  },
+  include: {
+    mockExamSubjects: {
       include: {
-        mockExamSubjects: true,
-        questions: true
+        subject: true // so you can map s.subject.name
       }
-    });
+    },
+    questions: {
+      include: {
+        question: {
+          include: {
+            subject: true,
+            topic: true,
+            options: true
+          }
+        }
+      }
+    }
+  }
+});
+
 
     return mockExam;
   }
@@ -239,65 +259,73 @@ export class MockExamService {
     return completedExam;
   }
 
-  static async getMockExamResults(examId: number, userId: number) {
-    const exam = await prisma.mockExam.findFirst({
-      where: {
-        id: examId,
-        userId,
-        status: MockExamStatus.COMPLETED
-      },
-      include: {
-        questions: {
-          include: {
-            question: {
-              select: {
-                id: true,
-                text: true,
-                options: true,
-                correctOptionId: true,
-                explanation: true,
-                subject: { select: { name: true } },
-                topic: { select: { name: true } }
-              }
+static async getMockExamResults(examId: number, userId: number) {
+  const exam = await prisma.mockExam.findFirst({
+    where: {
+      id: examId,
+      userId,
+      status: MockExamStatus.COMPLETED
+    },
+    include: {
+      questions: {
+        include: {
+          question: {
+            select: {
+              id: true,
+              text: true,
+              options: true, // should be array of objects with id + text
+              correctOptionId: true,
+              explanation: true,
+              subject: { select: { name: true } },
+              topic: { select: { name: true } }
             }
           }
-        },
-        mockExamSubjects: {
-          include: {
-            subject: { select: { name: true } }
-          }
+        }
+      },
+      mockExamSubjects: {
+        include: {
+          subject: { select: { name: true } }
         }
       }
-    });
+    }
+  });
 
-    if (!exam) return null;
+  if (!exam) return null;
 
-    const detailedResults = exam.questions.map(attempt => ({
+  const detailedResults = exam.questions.map(attempt => {
+    // If options is stored as array of objects
+    const optionIds = attempt.question.options.map(opt => opt.id);
+    const optionTexts = attempt.question.options.map(opt => opt.text);
+
+    return {
       questionId: attempt.questionId,
       question: attempt.question.text,
-      options: attempt.question.options,
-      selectedAnswer: attempt.userAnswer?.selectedOptionId ?? null,
+      options: optionTexts,            // string[]
+      optionIds,                       // number[]
+      selectedAnswer: (attempt.userAnswer as UserAnswer | null)?.selectedOptionId ?? null,
       correctAnswer: attempt.question.correctOptionId,
       isCorrect: attempt.isCorrect,
       subject: attempt.question.subject.name,
       topic: attempt.question.topic?.name ?? null,
       explanation: attempt.question.explanation,
       responseTime: attempt.responseTime
-    }));
-
-    return {
-      examId: exam.id,
-      examType: exam.examType,
-      subjects: exam.mockExamSubjects.map(s => s.subject.name),
-      questionCount: exam.questionCount,
-      correctAnswers: exam.correctAnswers,
-      percentage: exam.percentage,
-      timeSpent: exam.timeSpent,
-      completedAt: exam.completedAt,
-      subjectBreakdown: await this.calculateSubjectBreakdown(detailedResults),
-      detailedResults
     };
-  }
+  });
+
+  return {
+    examId: exam.id,
+    examType: exam.examType,
+    subjects: exam.mockExamSubjects.map(s => s.subject.name),
+    questionCount: exam.questionCount,
+    correctAnswers: exam.correctAnswers,
+    percentage: exam.percentage,
+    timeSpent: exam.timeSpent,
+    completedAt: exam.completedAt,
+    subjectBreakdown: await this.calculateSubjectBreakdown(detailedResults),
+    detailedResults
+  };
+}
+
 
   static async getMockExamHistory(userId: number, page: number, limit: number) {
     const offset = (page - 1) * limit;
@@ -385,19 +413,22 @@ export class MockExamService {
 
     // Calculate time remaining
     const elapsed = Math.floor((Date.now() - exam.startTime.getTime()) / 1000);
-    const timeRemaining = Math.max(0, (exam.timeLimit * 60) - elapsed);
+    const timeRemaining = Math.max(0, ((exam.timeLimit ?? 0) * 60) - elapsed);
 
     // Get answered questions
     const answers: Record<number, any> = {};
+
     exam.questions.forEach(attempt => {
       if (attempt.userAnswer !== null) {
+        const userAnswer = attempt.userAnswer as unknown as UserAnswer; // cast via unknown
         answers[attempt.questionId] = {
           questionId: attempt.questionId,
-          selectedAnswer: attempt.userAnswer?.selectedOptionId ?? null,
+          selectedAnswer: userAnswer.selectedOptionId,
           responseTime: attempt.responseTime
         };
       }
     });
+
 
     return {
       id: exam.id,

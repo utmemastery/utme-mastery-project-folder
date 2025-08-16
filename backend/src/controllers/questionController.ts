@@ -16,14 +16,17 @@ export class QuestionController {
         excludeIds 
       } = req.query;
 
-      // Map string values to Prisma enums
-      const difficultyMap = {
+      // Strictly typed maps
+      const difficultyMap: Record<'easy' | 'medium' | 'hard', DifficultyLevel> = {
         easy: DifficultyLevel.EASY,
         medium: DifficultyLevel.MEDIUM,
         hard: DifficultyLevel.HARD
       };
 
-      const cognitiveLevelMap = {
+      const cognitiveLevelMap: Record<
+        'recall' | 'comprehension' | 'application' | 'analysis' | 'synthesis' | 'evaluation',
+        CognitiveLevel
+      > = {
         recall: CognitiveLevel.RECALL,
         comprehension: CognitiveLevel.COMPREHENSION,
         application: CognitiveLevel.APPLICATION,
@@ -31,6 +34,18 @@ export class QuestionController {
         synthesis: CognitiveLevel.SYNTHESIS,
         evaluation: CognitiveLevel.EVALUATION
       };
+
+      // Narrow types to strings before validation
+      const diffKey = typeof difficulty === 'string' ? difficulty : undefined;
+      const cogKey = typeof cognitiveLevel === 'string' ? cognitiveLevel : undefined;
+
+      // Validate difficulty and cognitiveLevel if provided
+      if (diffKey && !(diffKey in difficultyMap)) {
+        return res.status(400).json({ error: `Invalid difficulty: ${diffKey}` });
+      }
+      if (cogKey && !(cogKey in cognitiveLevelMap)) {
+        return res.status(400).json({ error: `Invalid cognitive level: ${cogKey}` });
+      }
 
       let parsedExcludeIds: number[] = [];
       if (excludeIds) {
@@ -47,8 +62,8 @@ export class QuestionController {
       const filters = {
         subject: subject as string,
         topic: topic as string,
-        difficulty: difficulty ? difficultyMap[difficulty as string] : undefined,
-        cognitiveLevel: cognitiveLevel ? cognitiveLevelMap[cognitiveLevel as string] : undefined,
+        difficulty: diffKey ? difficultyMap[diffKey as keyof typeof difficultyMap] : undefined,
+        cognitiveLevel: cogKey ? cognitiveLevelMap[cogKey as keyof typeof cognitiveLevelMap] : undefined,
         excludeIds: parsedExcludeIds,
         userId
       };

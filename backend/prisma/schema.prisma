@@ -41,11 +41,13 @@ model User {
   badges                 Badge[]
   experimentGroups       ExperimentGroup[]
   feedback               Feedback[]
+  flashcards             Flashcard[]
   flashcardReviews       FlashcardReview[]
   leaderboards           Leaderboard[]
   mockExams              MockExam[]
   offlineSyncs           OfflineSync[]
   performanceSnapshots   PerformanceSnapshot[]
+  PracticeSession        PracticeSession[]
   questionAttempts       QuestionAttempt[]
   quizAttempts           QuizAttempt[]
   reviewQueues           ReviewQueue[]
@@ -53,8 +55,8 @@ model User {
   studyPlans             StudyPlan[]
   studySessions          StudySession[]
   topicMasteries         TopicMastery[]
+  achievements           Achievement[]
   progress               UserProgress[]
-  PracticeSession        PracticeSession[]
 
   @@index([email])
   @@index([role])
@@ -69,6 +71,7 @@ model Subject {
   mockExamSubjects     MockExamSubject[]
   passages             Passage[]
   performanceSnapshots PerformanceSnapshot[]
+  PracticeSession      PracticeSession[]
   questions            Question[]
   quizAttempts         QuizAttempt[]
   quizSubjects         QuizSubject[]
@@ -76,7 +79,6 @@ model Subject {
   studySessions        StudySession[]
   syllabi              Syllabus[]
   topics               Topic[]
-  PracticeSession      PracticeSession[]
 
   @@index([name])
 }
@@ -98,7 +100,7 @@ model Section {
 model Topic {
   id                    Int                    @id @default(autoincrement())
   subjectId             Int
-  name                  String
+  name                  String                 @unique
   description           String?
   createdAt             DateTime               @default(now())
   objectives            String[]
@@ -109,6 +111,8 @@ model Topic {
   flashcards            Flashcard[]
   images                Image[]
   passages              Passage[]
+  practiceSession       PracticeSession[]
+  practiceSessionTopics PracticeSessionTopic[]
   questionSubtopics     Question[]             @relation("QuestionSubtopic")
   questions             Question[]
   studySessions         StudySession[]
@@ -121,8 +125,6 @@ model Topic {
   topicMasteries        TopicMastery[]
   userProgressSubtopics UserProgress[]         @relation("UserProgressSubtopic")
   userProgress          UserProgress[]
-  practiceSession       PracticeSession[]
-  practiceSessionTopics PracticeSessionTopic[]
 
   @@index([subjectId])
   @@index([sectionId])
@@ -257,11 +259,12 @@ model QuestionAttempt {
   isCorrect         Boolean
   selectedOption    String?
   timeTaken         Int
+  confidenceLevel   Int?
   attemptedAt       DateTime         @default(now())
+  practiceSessionId String?
+  PracticeSession   PracticeSession? @relation(fields: [practiceSessionId], references: [id])
   question          Question         @relation(fields: [questionId], references: [id])
   user              User             @relation(fields: [userId], references: [id])
-  PracticeSession   PracticeSession? @relation(fields: [practiceSessionId], references: [id])
-  practiceSessionId String?
 
   @@index([userId, questionId])
 }
@@ -295,6 +298,8 @@ model Flashcard {
   explanation       String?
   aiDifficultyScore Float?
   createdAt         DateTime          @default(now())
+  createdById       Int
+  createdBy         User              @relation(fields: [createdById], references: [id])
   updatedAt         DateTime          @updatedAt
   mediaUrl          String?
   subtopicId        Int?
@@ -329,6 +334,7 @@ model QuizAttempt {
   subjectId     Int?
   createdAt     DateTime       @default(now())
   questionCount Int?
+  score         Int?
   quizType      QuizType?
   updatedAt     DateTime       @updatedAt
   subject       Subject?       @relation(fields: [subjectId], references: [id])
@@ -410,9 +416,9 @@ model PracticeSession {
   endTime          DateTime?
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
-  user             User                   @relation(fields: [userId], references: [id])
   subject          Subject                @relation(fields: [subjectId], references: [id])
   topic            Topic?                 @relation(fields: [topicId], references: [id])
+  user             User                   @relation(fields: [userId], references: [id])
   topics           PracticeSessionTopic[]
   questionAttempts QuestionAttempt[]
 }
@@ -437,39 +443,40 @@ model StudyPlan {
   aiGenerated Boolean     @default(false)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  date        DateTime? // <-- Add this for daily plans
-  tasks       StudyTask[]
+  date        DateTime?
   user        User        @relation(fields: [userId], references: [id])
+  tasks       StudyTask[]
 }
 
 model StudyTask {
-  id            Int                @id @default(autoincrement())
-  studyPlanId   Int
-  type          StudyTaskType // <-- Add: 'practice', 'review', etc.
-  title         String // <-- Add
-  description   String
-  subject       String? // <-- Add
-  estimatedTime Int? // <-- Add (minutes)
-  priority      StudyTaskPriority? // <-- Change to String or use enum
-  status        StudyTaskStatus // <-- Add: 'pending', 'in_progress', 'completed'
-  dueDate       DateTime
-  metadata      Json? // <-- Add for extra info
-  completed     Boolean            @default(false)
-  flashcardId   Int?
-  questionId    Int?
-  createdAt     DateTime           @default(now())
-  mockExamId    Int?
-  quizAttemptId Int?
-  subtopicId    Int?
-  topicId       Int?
-  updatedAt     DateTime           @updatedAt
-  flashcard     Flashcard?         @relation(fields: [flashcardId], references: [id])
-  mockExam      MockExam?          @relation(fields: [mockExamId], references: [id])
-  question      Question?          @relation(fields: [questionId], references: [id])
-  quizAttempt   QuizAttempt?       @relation(fields: [quizAttemptId], references: [id])
-  studyPlan     StudyPlan          @relation(fields: [studyPlanId], references: [id])
-  subtopic      Topic?             @relation("StudyTaskSubtopic", fields: [subtopicId], references: [id])
-  topic         Topic?             @relation(fields: [topicId], references: [id])
+  id              Int                @id @default(autoincrement())
+  studyPlanId     Int
+  type            StudyTaskType
+  title           String
+  description     String
+  subject         String?
+  estimatedTime   Int?
+  actualTimeSpent Int?
+  priority        StudyTaskPriority?
+  status          StudyTaskStatus
+  dueDate         DateTime
+  metadata        Json?
+  completed       Boolean            @default(false)
+  flashcardId     Int?
+  questionId      Int?
+  createdAt       DateTime           @default(now())
+  mockExamId      Int?
+  quizAttemptId   Int?
+  subtopicId      Int?
+  topicId         Int?
+  updatedAt       DateTime           @updatedAt
+  flashcard       Flashcard?         @relation(fields: [flashcardId], references: [id])
+  mockExam        MockExam?          @relation(fields: [mockExamId], references: [id])
+  question        Question?          @relation(fields: [questionId], references: [id])
+  quizAttempt     QuizAttempt?       @relation(fields: [quizAttemptId], references: [id])
+  studyPlan       StudyPlan          @relation(fields: [studyPlanId], references: [id])
+  subtopic        Topic?             @relation("StudyTaskSubtopic", fields: [subtopicId], references: [id])
+  topic           Topic?             @relation(fields: [topicId], references: [id])
 
   @@index([studyPlanId, dueDate])
   @@index([completed])
@@ -510,7 +517,7 @@ model PerformanceSnapshot {
   subject           Subject  @relation(fields: [subjectId], references: [id])
   user              User     @relation(fields: [userId], references: [id])
 
-  @@index([userId, subjectId])
+  @@unique([userId, subjectId], name: "userId_subjectId")
 }
 
 model MockExamSubject {
@@ -589,6 +596,21 @@ model ExperimentGroup {
   user       User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, feature])
+}
+
+model Achievement {
+  id          Int             @id @default(autoincrement())
+  title       String
+  description String?
+  type        AchievementType
+  points      Int             @default(0)
+  earnedAt    DateTime        @default(now())
+
+  // Relation back to user
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 model Streak {
@@ -715,4 +737,10 @@ enum MockExamStatus {
 enum PassageType {
   COMPREHENSION
   CLOZE
+}
+
+enum AchievementType {
+  BADGE // visual badge, e.g., "Gold Star"
+  MILESTONE // progress milestone, e.g., "Completed 10 quizzes"
+  SCORE // points threshold, e.g., "Reached 1000 points"
 }

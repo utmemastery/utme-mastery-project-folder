@@ -1,11 +1,13 @@
-// mobile/src/screens/onboarding/AssessmentResultsScreen.tsx
 import React from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../navigation/types';
 
 interface AssessmentResultsScreenProps {
-  navigation: any;
+  navigation: NativeStackNavigationProp<RootStackParamList, 'AssessmentResults'>;
   route: {
     params: {
       subjectProficiency: Array<{ subject: string; proficiency: number }>;
@@ -43,6 +45,14 @@ export const AssessmentResultsScreen: React.FC<AssessmentResultsScreenProps> = (
   const averageProficiency = subjectProficiency.reduce((sum, item) => sum + item.proficiency, 0) / subjectProficiency.length;
   const currentProjectedScore = Math.round(200 + (averageProficiency / 100) * 200);
 
+  const handleStartLearning = () => {
+    console.log('Navigating to MainTabs');
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'MainTabs' }]
+    });
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <ScrollView style={{ flex: 1 }}>
@@ -77,15 +87,9 @@ export const AssessmentResultsScreen: React.FC<AssessmentResultsScreenProps> = (
             </Text>
             
             {currentProjectedScore < goalScore && (
-              <View style={{ 
-                backgroundColor: '#FEF3C7', 
-                padding: 12, 
-                borderRadius: 8, 
-                marginTop: 12,
-                width: '100%'
-              }}>
-                <Text style={{ fontSize: 12, color: '#92400E', textAlign: 'center' }}>
-                  💪 You need {goalScore - currentProjectedScore} more points to reach your goal!
+              <View style={{ marginTop: 16 }}>
+                <Text style={{ fontSize: 14, color: '#EF4444', textAlign: 'center' }}>
+                  You're {goalScore - currentProjectedScore} points away from your goal. Let's work together to reach it!
                 </Text>
               </View>
             )}
@@ -163,7 +167,7 @@ export const AssessmentResultsScreen: React.FC<AssessmentResultsScreenProps> = (
       <View style={{ padding: 24 }}>
         <Button
           title="Start My Learning Journey"
-          onPress={() => navigation.replace('MainTabs')}
+          onPress={handleStartLearning}
           size="large"
         />
       </View>

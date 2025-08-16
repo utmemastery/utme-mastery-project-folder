@@ -5,6 +5,7 @@
   },
   "include": [
     "src",
-    "env.d.ts"
+    "env.d.ts",
+    "App.tsx"
   ]
 }

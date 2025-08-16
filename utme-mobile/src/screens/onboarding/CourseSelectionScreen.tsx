@@ -8,10 +8,10 @@ import { RootStackParamList } from '../../navigation/types';
 interface CourseSelectionScreenProps extends NativeStackScreenProps<RootStackParamList, 'CourseSelection'> {}
 
 const POPULAR_COURSES = [
-  { id: 'medicine', name: 'Medicine & Surgery', icon: '🩺', cutoff: 320, requiredSubjects: ['english', 'mathematics', 'physics', 'chemistry', 'biology'] },
+  { id: 'medicine', name: 'Medicine & Surgery', icon: '🩺', cutoff: 320, requiredSubjects: ['english', 'physics', 'chemistry', 'biology'] },
   { id: 'engineering', name: 'Engineering', icon: '⚙️', cutoff: 280, requiredSubjects: ['english', 'mathematics', 'physics', 'chemistry'] },
   { id: 'law', name: 'Law', icon: '⚖️', cutoff: 280, requiredSubjects: ['english', 'mathematics', 'literature', 'government'] },
-  { id: 'pharmacy', name: 'Pharmacy', icon: '💊', cutoff: 300, requiredSubjects: ['english', 'mathematics', 'physics', 'chemistry', 'biology'] },
+  { id: 'pharmacy', name: 'Pharmacy', icon: '💊', cutoff: 300, requiredSubjects: ['english', 'physics', 'chemistry', 'biology'] },
   { id: 'computer_science', name: 'Computer Science', icon: '💻', cutoff: 270, requiredSubjects: ['english', 'mathematics', 'physics', 'chemistry'] },
   { id: 'accounting', name: 'Accounting', icon: '📊', cutoff: 250, requiredSubjects: ['english', 'mathematics', 'economics', 'government'] },
   { id: 'business_admin', name: 'Business Administration', icon: '💼', cutoff: 240, requiredSubjects: ['english', 'mathematics', 'economics', 'government'] },

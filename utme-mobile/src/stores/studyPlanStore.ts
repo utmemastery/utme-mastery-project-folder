@@ -83,30 +83,30 @@ export const useStudyPlanStore = create<StudyPlanState>((set, get) => ({
       set({ error: error.response?.data?.error || 'Failed to update task' });
     }
   },
+regenerateStudyPlan: async () => { 
+  try {
+    set({ isLoading: true, error: null });
+    const response = await api.put('/user/study-plan/regenerate');
+    set({ 
+      studyPlan: {
+        ...response.data.studyPlan,
+        date: new Date(response.data.studyPlan.date),
+        tasks: response.data.studyPlan.tasks.map((task: any) => ({
+          ...task,
+          id: Number(task.id),
+          dueDate: new Date(task.dueDate)
+        }))
+      },
+      isLoading: false 
+    });
+  } catch (error: any) {
+    set({ 
+      error: error.response?.data?.message || error.message || "Failed to regenerate study plan",
+      isLoading: false 
+    });
+  }
+},
 
-  regenerateStudyPlan: async () => {
-    try {
-      set({ isLoading: true, error: null });
-      const response = await api.put('/user/study-plan/regenerate');
-      set({ 
-        studyPlan: {
-          ...response.data.studyPlan,
-          date: new Date(response.data.studyPlan.date),
-          tasks: response.data.studyPlan.tasks.map((task: any) => ({
-            ...task,
-            id: Number(task.id),
-            dueDate: new Date(task.dueDate)
-          }))
-        },
-        isLoading: false 
-      });
-    } catch (error: any) {
-      set({ 
-        error: error.response?.constexpr: true,
-        isLoading: false 
-      });
-    }
-  },
 
   clearError: () => set({ error: null })
 }));

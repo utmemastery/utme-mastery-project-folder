@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, BackHandler, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, BackHandler, ActivityIndicator, Modal, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMockExamStore, MockExam, MockExamQuestion } from '../../stores/mockExamStore';
+import { useMockExamStore, MockExamQuestion } from '../../stores/mockExamStore';
 
 interface MockExamSessionScreenProps {
   navigation: any;
 }
+
+const { width } = Dimensions.get('window');
 
 export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ navigation }) => {
   const { 
@@ -16,16 +18,27 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
     submitAnswer,
     nextQuestion,
     previousQuestion,
+    jumpToQuestion,
+    getQuestionStatus,
+    getProgressSummary,
+    getCompletion,
+    getActiveQuestion,
     endExam,
     isLoading,
-    error
+    error,
+    clearError
   } = useMockExamStore();
 
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showLowTimeWarning, setShowLowTimeWarning] = useState(false);
+  const [showCriticalTimeWarning, setShowCriticalTimeWarning] = useState(false);
+  const [showQuestionOverview, setShowQuestionOverview] = useState(false);
+  const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
 
-  const currentQuestion: MockExamQuestion | undefined = currentExam?.questions[currentQuestionIndex];
-  const totalQuestions: number = currentExam?.questions.length || 0;
+  const currentQuestion = getActiveQuestion();
+  const totalQuestions = currentExam?.questions.length || 0;
+  const progressSummary = getProgressSummary();
+  const completionPercentage = getCompletion();
 
   useEffect(() => {
     // Handle hardware back button
@@ -43,21 +56,51 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
       const existingAnswer = answers[currentQuestion.id];
       setSelectedAnswer(existingAnswer?.selectedOptionId ?? null);
     }
-  }, [currentQuestionIndex, currentQuestion]);
+  }, [currentQuestionIndex, currentQuestion, answers]);
 
   useEffect(() => {
-    // Show low time warning when time is less than 5 minutes
-    setShowLowTimeWarning(timeRemaining <= 300 && timeRemaining > 0);
+    // Time-based warnings
+    if (timeRemaining <= 60 && timeRemaining > 0 && !showCriticalTimeWarning) {
+      setShowCriticalTimeWarning(true);
+      Alert.alert(
+        '⚠️ Critical Time Warning',
+        'Less than 1 minute remaining! Your exam will auto-submit when time runs out.',
+        [{ text: 'Continue', onPress: () => setShowCriticalTimeWarning(false) }]
+      );
+    } else if (timeRemaining <= 300 && timeRemaining > 60) {
+      setShowLowTimeWarning(true);
+    } else if (timeRemaining > 300) {
+      setShowLowTimeWarning(false);
+    }
+
+    // Auto-submit when time runs out
+    if (timeRemaining === 0 && currentExam) {
+      Alert.alert(
+        'Time Up!',
+        'Your exam time has expired. Submitting automatically...',
+        [{ text: 'OK', onPress: async () => {
+          await endExam();
+          navigation.navigate('MockExamResults');
+        }}]
+      );
+    }
   }, [timeRemaining]);
+
+  useEffect(() => {
+    // Clear any existing errors when component mounts
+    if (error) {
+      clearError();
+    }
+  }, []);
 
   const handleExitAttempt = () => {
     Alert.alert(
       'Exit Mock Exam?',
-      'Your progress will be saved. You can resume this exam later.',
+      `Your progress will be saved automatically. You have answered ${progressSummary.answered} out of ${progressSummary.total} questions.\n\nYou can resume this exam later from where you left off.`,
       [
         { text: 'Continue Exam', style: 'cancel' },
         { 
-          text: 'Exit', 
+          text: 'Exit & Save', 
           style: 'destructive',
           onPress: () => navigation.goBack()
         }
@@ -67,17 +110,29 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
 
   const handleAnswerSelect = (answerIndex: number) => {
     if (currentQuestion) {
-      // Map option index to Option.id
       const optionId = currentQuestion.optionIds ? currentQuestion.optionIds[answerIndex] : answerIndex;
       setSelectedAnswer(optionId);
+      // Immediately save the answer
+      submitAnswer(currentQuestion.id, optionId);
+    }
+  };
+
+  const handleSkipQuestion = () => {
+    if (currentQuestion) {
+      // Submit with -1 to indicate skipped
+      submitAnswer(currentQuestion.id, -1);
+      setSelectedAnswer(-1);
+      
+      if (currentQuestionIndex < totalQuestions - 1) {
+        nextQuestion();
+      } else {
+        // If this is the last question, show completion dialog
+        handleFinishExam();
+      }
     }
   };
 
   const handleNextQuestion = () => {
-    if (selectedAnswer !== null && currentQuestion) {
-      submitAnswer(currentQuestion.id, selectedAnswer);
-    }
-
     if (currentQuestionIndex < totalQuestions - 1) {
       nextQuestion();
     } else {
@@ -86,27 +141,35 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
   };
 
   const handlePreviousQuestion = () => {
-    if (selectedAnswer !== null && currentQuestion) {
-      submitAnswer(currentQuestion.id, selectedAnswer);
+    if (currentQuestionIndex > 0) {
+      previousQuestion();
     }
-    previousQuestion();
+  };
+
+  const handleQuestionJump = (questionIndex: number) => {
+    jumpToQuestion(questionIndex);
+    setShowQuestionOverview(false);
   };
 
   const handleFinishExam = () => {
-    Alert.alert(
-      'Finish Exam?',
-      'Are you sure you want to submit your exam? You cannot change your answers after submission.',
-      [
-        { text: 'Review', style: 'cancel' },
-        { 
-          text: 'Submit', 
-          onPress: async () => {
-            await endExam();
-            navigation.navigate('MockExamResults');
-          }
-        }
-      ]
-    );
+    const { answered, unanswered, skipped } = progressSummary;
+    
+    let message = `You have completed ${answered} questions`;
+    if (unanswered > 0) message += `, ${unanswered} unanswered`;
+    if (skipped > 0) message += `, ${skipped} skipped`;
+    message += `.\n\nAre you sure you want to submit your exam? You cannot change your answers after submission.`;
+
+    setShowConfirmSubmit(true);
+  };
+
+  const confirmSubmitExam = async () => {
+    setShowConfirmSubmit(false);
+    try {
+      await endExam();
+      navigation.navigate('MockExamResults');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to submit exam. Please try again.');
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -121,9 +184,28 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
   };
 
   const getTimeColor = (seconds: number) => {
+    if (seconds < 60) return '#DC2626'; // Red for < 1 minute
     if (seconds < 300) return '#EF4444'; // Red for < 5 minutes
-    if (seconds < 900) return '#F59E0B'; // Yellow for < 15 minutes
+    if (seconds < 900) return '#F59E0B'; // Amber for < 15 minutes
     return '#10B981'; // Green
+  };
+
+  const getQuestionStatusColor = (status: string) => {
+    switch (status) {
+      case 'answered': return '#10B981';
+      case 'skipped': return '#F59E0B';
+      case 'unanswered': return '#6B7280';
+      default: return '#6B7280';
+    }
+  };
+
+  const getQuestionStatusIcon = (status: string) => {
+    switch (status) {
+      case 'answered': return '✓';
+      case 'skipped': return '⏭';
+      case 'unanswered': return '○';
+      default: return '○';
+    }
   };
 
   if (isLoading || !currentExam || !currentQuestion) {
@@ -131,8 +213,8 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
       <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={{ fontSize: 18, color: '#6B7280', marginTop: 8 }}>
-            Loading exam...
+          <Text style={{ fontSize: 18, color: '#6B7280', marginTop: 16 }}>
+            {currentExam ? 'Loading question...' : 'Preparing exam...'}
           </Text>
         </View>
       </SafeAreaView>
@@ -143,75 +225,110 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Text style={{ fontSize: 16, color: '#EF4444', textAlign: 'center' }}>
+          <Text style={{ fontSize: 24, marginBottom: 8 }}>⚠️</Text>
+          <Text style={{ fontSize: 18, fontWeight: '600', color: '#1F2937', marginBottom: 8, textAlign: 'center' }}>
+            Something went wrong
+          </Text>
+          <Text style={{ fontSize: 16, color: '#EF4444', textAlign: 'center', marginBottom: 24 }}>
             {error}
           </Text>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={{
-              backgroundColor: '#3B82F6',
-              borderRadius: 8,
-              padding: 12,
-              marginTop: 16
-            }}
-          >
-            <Text style={{ color: 'white', fontWeight: '500' }}>Return to Home</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={{
+                backgroundColor: '#6B7280',
+                borderRadius: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 20
+              }}
+            >
+              <Text style={{ color: 'white', fontWeight: '500' }}>Return to Home</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={clearError}
+              style={{
+                backgroundColor: '#3B82F6',
+                borderRadius: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 20
+              }}
+            >
+              <Text style={{ color: 'white', fontWeight: '500' }}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
 
-  const answeredCount = Object.keys(answers).length;
-  const progressPercentage = (answeredCount / totalQuestions) * 100;
+  const currentQuestionStatus = getQuestionStatus(currentQuestion.id);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <View style={{ flex: 1 }}>
-        {/* Low Time Warning */}
-        {showLowTimeWarning && (
+        {/* Time Warnings */}
+        {showLowTimeWarning && timeRemaining > 60 && (
           <View style={{
             backgroundColor: '#FEF3C7',
             padding: 12,
+            margin: 16,
             borderRadius: 8,
-            margin: 20,
             borderLeftWidth: 4,
             borderLeftColor: '#F59E0B'
           }}>
-            <Text style={{ fontSize: 14, color: '#92400E' }}>
-              ⏰ Less than 5 minutes remaining!
+            <Text style={{ fontSize: 14, color: '#92400E', fontWeight: '500' }}>
+              ⏰ Less than 5 minutes remaining! Consider reviewing your answers.
             </Text>
           </View>
         )}
 
-        {/* Header */}
+        {timeRemaining <= 60 && timeRemaining > 0 && (
+          <View style={{
+            backgroundColor: '#FEE2E2',
+            padding: 12,
+            margin: 16,
+            borderRadius: 8,
+            borderLeftWidth: 4,
+            borderLeftColor: '#DC2626'
+          }}>
+            <Text style={{ fontSize: 14, color: '#991B1B', fontWeight: '600' }}>
+              🚨 Critical: Less than 1 minute remaining!
+            </Text>
+          </View>
+        )}
+
+        {/* Enhanced Header */}
         <View style={{ 
           flexDirection: 'row', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          padding: 20,
-          paddingBottom: 12,
+          paddingHorizontal: 20,
+          paddingVertical: 16,
           borderBottomWidth: 1,
-          borderBottomColor: '#E5E7EB'
+          borderBottomColor: '#E5E7EB',
+          backgroundColor: '#F9FAFB'
         }}>
           <TouchableOpacity onPress={handleExitAttempt}>
-            <Text style={{ fontSize: 16, color: '#EF4444', fontWeight: '500' }}>
+            <Text style={{ fontSize: 16, color: '#EF4444', fontWeight: '600' }}>
               Exit
             </Text>
           </TouchableOpacity>
           
-          <View style={{ alignItems: 'center' }}>
+          <TouchableOpacity 
+            onPress={() => setShowQuestionOverview(true)}
+            style={{ alignItems: 'center' }}
+          >
             <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937' }}>
               Question {currentQuestionIndex + 1} of {totalQuestions}
             </Text>
             <Text style={{ fontSize: 12, color: '#6B7280' }}>
-              {currentQuestion.subject} • {currentQuestion.difficulty}
+              {currentQuestion.subject} • {currentQuestion.difficulty} • Tap for overview
             </Text>
-          </View>
+          </TouchableOpacity>
           
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ 
-              fontSize: 16, 
+              fontSize: 18, 
               fontWeight: 'bold', 
               color: getTimeColor(timeRemaining)
             }}>
@@ -223,39 +340,85 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
           </View>
         </View>
 
-        {/* Progress Indicators */}
-        <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+        {/* Enhanced Progress Bar */}
+        <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
           <View style={{ 
-            height: 4, 
+            height: 6, 
             backgroundColor: '#E5E7EB', 
-            borderRadius: 2, 
+            borderRadius: 3, 
             overflow: 'hidden',
-            marginBottom: 8
+            marginBottom: 12
           }}>
             <View style={{ 
               height: '100%', 
               backgroundColor: '#3B82F6',
-              width: `${((currentQuestionIndex + 1) / totalQuestions) * 100}%`
+              width: `${completionPercentage}%`,
+              borderRadius: 3
             }} />
           </View>
           
-          <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
-            {answeredCount} answered • {totalQuestions - answeredCount} remaining
-          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ fontSize: 12, color: '#6B7280' }}>
+              Progress: {completionPercentage}% complete
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <Text style={{ fontSize: 12, color: '#10B981' }}>
+                ✓ {progressSummary.answered}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#F59E0B' }}>
+                ⏭ {progressSummary.skipped}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#6B7280' }}>
+                ○ {progressSummary.unanswered}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Question Content */}
         <ScrollView style={{ flex: 1, paddingHorizontal: 20 }}>
+          {/* Question Status Badge */}
+          <View style={{ 
+            flexDirection: 'row', 
+            alignItems: 'center', 
+            marginBottom: 16 
+          }}>
+            <View style={{
+              backgroundColor: getQuestionStatusColor(currentQuestionStatus) + '20',
+              borderWidth: 1,
+              borderColor: getQuestionStatusColor(currentQuestionStatus),
+              borderRadius: 16,
+              paddingHorizontal: 12,
+              paddingVertical: 4
+            }}>
+              <Text style={{ 
+                fontSize: 12, 
+                fontWeight: '600',
+                color: getQuestionStatusColor(currentQuestionStatus) 
+              }}>
+                {getQuestionStatusIcon(currentQuestionStatus)} {currentQuestionStatus.toUpperCase()}
+              </Text>
+            </View>
+            {currentQuestion.topic && (
+              <Text style={{ fontSize: 12, color: '#6B7280', marginLeft: 8 }}>
+                Topic: {currentQuestion.topic}
+              </Text>
+            )}
+          </View>
+
+          {/* Question Text */}
           <View style={{ 
             backgroundColor: '#F9FAFB', 
             padding: 20, 
             borderRadius: 12, 
-            marginBottom: 24 
+            marginBottom: 24,
+            borderWidth: 1,
+            borderColor: '#E5E7EB'
           }}>
             <Text style={{ 
-              fontSize: 16, 
+              fontSize: 17, 
               color: '#1F2937', 
-              lineHeight: 24,
+              lineHeight: 26,
               fontWeight: '500'
             }}>
               {currentQuestion.question}
@@ -263,51 +426,53 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
           </View>
 
           {/* Answer Options */}
-          <View style={{ gap: 12, marginBottom: 24 }}>
+          <View style={{ gap: 12, marginBottom: 32 }}>
             {currentQuestion.options.map((option, index) => {
-              const isSelected = selectedAnswer === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index);
+              const optionId = currentQuestion.optionIds ? currentQuestion.optionIds[index] : index;
+              const isSelected = selectedAnswer === optionId;
               const existingAnswer = answers[currentQuestion.id];
-              const wasAnswered = existingAnswer !== undefined;
+              const wasAnswered = existingAnswer && existingAnswer.selectedOptionId === optionId;
               
               return (
                 <TouchableOpacity
                   key={index}
                   onPress={() => handleAnswerSelect(index)}
                   style={{
-                    backgroundColor: isSelected ? '#EFF6FF' : wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index) ? '#F0FDF4' : 'white',
+                    backgroundColor: isSelected ? '#EFF6FF' : wasAnswered ? '#F0FDF4' : 'white',
                     borderWidth: 2,
-                    borderColor: isSelected ? '#3B82F6' : wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index) ? '#10B981' : '#E5E7EB',
+                    borderColor: isSelected ? '#3B82F6' : wasAnswered ? '#10B981' : '#E5E7EB',
                     borderRadius: 12,
                     padding: 16,
                     flexDirection: 'row',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    minHeight: 60
                   }}
+                  activeOpacity={0.7}
                 >
                   <View style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 12,
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
                     borderWidth: 2,
-                    borderColor: isSelected ? '#3B82F6' : wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index) ? '#10B981' : '#D1D5DB',
-                    backgroundColor: isSelected ? '#3B82F6' : wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index) ? '#10B981' : 'transparent',
-                    marginRight: 12,
+                    borderColor: isSelected ? '#3B82F6' : wasAnswered ? '#10B981' : '#D1D5DB',
+                    backgroundColor: isSelected ? '#3B82F6' : wasAnswered ? '#10B981' : 'transparent',
+                    marginRight: 16,
                     justifyContent: 'center',
                     alignItems: 'center'
                   }}>
-                    {(isSelected || (wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index))) && (
-                      <Text style={{ 
-                        color: 'white', 
-                        fontSize: 12, 
-                        fontWeight: 'bold' 
-                      }}>
-                        {String.fromCharCode(65 + index)}
-                      </Text>
-                    )}
+                    <Text style={{ 
+                      color: (isSelected || wasAnswered) ? 'white' : '#6B7280', 
+                      fontSize: 14, 
+                      fontWeight: 'bold' 
+                    }}>
+                      {String.fromCharCode(65 + index)}
+                    </Text>
                   </View>
                   <Text style={{ 
                     fontSize: 16, 
-                    color: isSelected ? '#1E40AF' : wasAnswered && existingAnswer.selectedOptionId === (currentQuestion.optionIds ? currentQuestion.optionIds[index] : index) ? '#065F46' : '#374151',
-                    flex: 1
+                    color: isSelected ? '#1E40AF' : wasAnswered ? '#065F46' : '#374151',
+                    flex: 1,
+                    lineHeight: 22
                   }}>
                     {option}
                   </Text>
@@ -317,50 +482,272 @@ export const MockExamSessionScreen: React.FC<MockExamSessionScreenProps> = ({ na
           </View>
         </ScrollView>
 
-        {/* Navigation */}
+        {/* Enhanced Navigation */}
         <View style={{ 
-          flexDirection: 'row', 
-          justifyContent: 'space-between', 
           padding: 20,
           borderTopWidth: 1,
-          borderTopColor: '#E5E7EB'
+          borderTopColor: '#E5E7EB',
+          backgroundColor: '#FAFAFA'
         }}>
-          <TouchableOpacity
-            onPress={handlePreviousQuestion}
-            disabled={currentQuestionIndex === 0}
-            style={{
-              backgroundColor: currentQuestionIndex === 0 ? '#F3F4F6' : 'white',
-              borderWidth: 1,
-              borderColor: '#D1D5DB',
-              borderRadius: 8,
-              paddingVertical: 12,
-              paddingHorizontal: 24,
-              opacity: currentQuestionIndex === 0 ? 0.5 : 1
-            }}
-          >
-            <Text style={{ 
-              fontSize: 16, 
-              fontWeight: '500',
-              color: currentQuestionIndex === 0 ? '#9CA3AF' : '#374151'
-            }}>
-              ← Previous
-            </Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+            <TouchableOpacity
+              onPress={handlePreviousQuestion}
+              disabled={currentQuestionIndex === 0}
+              style={{
+                backgroundColor: currentQuestionIndex === 0 ? '#F3F4F6' : 'white',
+                borderWidth: 1,
+                borderColor: '#D1D5DB',
+                borderRadius: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 20,
+                opacity: currentQuestionIndex === 0 ? 0.5 : 1,
+                minWidth: 100
+              }}
+            >
+              <Text style={{ 
+                fontSize: 16, 
+                fontWeight: '500',
+                color: currentQuestionIndex === 0 ? '#9CA3AF' : '#374151',
+                textAlign: 'center'
+              }}>
+                ← Previous
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={currentQuestionIndex === totalQuestions - 1 ? handleFinishExam : handleNextQuestion}
-            style={{
-              backgroundColor: '#3B82F6',
-              borderRadius: 8,
-              paddingVertical: 12,
-              paddingHorizontal: 24
-            }}
-          >
-            <Text style={{ fontSize: 16, fontWeight: '500', color: 'white' }}>
-              {currentQuestionIndex === totalQuestions - 1 ? 'Finish Exam' : 'Next →'}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSkipQuestion}
+              style={{
+                backgroundColor: 'white',
+                borderWidth: 1,
+                borderColor: '#F59E0B',
+                borderRadius: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                minWidth: 80
+              }}
+            >
+              <Text style={{ 
+                fontSize: 16, 
+                fontWeight: '500',
+                color: '#D97706',
+                textAlign: 'center'
+              }}>
+                Skip
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={currentQuestionIndex === totalQuestions - 1 ? handleFinishExam : handleNextQuestion}
+              style={{
+                backgroundColor: '#3B82F6',
+                borderRadius: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 20,
+                minWidth: 100
+              }}
+            >
+              <Text style={{ 
+                fontSize: 16, 
+                fontWeight: '500', 
+                color: 'white',
+                textAlign: 'center'
+              }}>
+                {currentQuestionIndex === totalQuestions - 1 ? 'Finish' : 'Next →'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Question Overview Modal */}
+        <Modal
+          visible={showQuestionOverview}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowQuestionOverview(false)}
+        >
+          <View style={{ 
+            flex: 1, 
+            backgroundColor: 'rgba(0,0,0,0.5)', 
+            justifyContent: 'flex-end' 
+          }}>
+            <View style={{
+              backgroundColor: 'white',
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              maxHeight: '80%',
+              paddingTop: 20
+            }}>
+              <View style={{ 
+                flexDirection: 'row', 
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingHorizontal: 20,
+                paddingBottom: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: '#E5E7EB'
+              }}>
+                <Text style={{ fontSize: 18, fontWeight: '600', color: '#1F2937' }}>
+                  Question Overview
+                </Text>
+                <TouchableOpacity onPress={() => setShowQuestionOverview(false)}>
+                  <Text style={{ fontSize: 24, color: '#6B7280' }}>×</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ maxHeight: 400 }}>
+                <View style={{ 
+                  flexDirection: 'row', 
+                  flexWrap: 'wrap', 
+                  padding: 20,
+                  gap: 12
+                }}>
+                  {currentExam?.questions.map((_, index) => {
+                    const question = currentExam.questions[index];
+                    const status = getQuestionStatus(question.id);
+                    const isCurrentQuestion = index === currentQuestionIndex;
+                    
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        onPress={() => handleQuestionJump(index)}
+                        style={{
+                          width: (width - 64) / 6,
+                          height: 48,
+                          backgroundColor: isCurrentQuestion ? '#3B82F6' : 
+                            status === 'answered' ? '#10B981' : 
+                            status === 'skipped' ? '#F59E0B' : 'white',
+                          borderWidth: 1,
+                          borderColor: isCurrentQuestion ? '#3B82F6' : 
+                            status === 'answered' ? '#10B981' : 
+                            status === 'skipped' ? '#F59E0B' : '#D1D5DB',
+                          borderRadius: 8,
+                          justifyContent: 'center',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <Text style={{
+                          fontSize: 12,
+                          fontWeight: '600',
+                          color: (isCurrentQuestion || status !== 'unanswered') ? 'white' : '#6B7280'
+                        }}>
+                          {index + 1}
+                        </Text>
+                        <Text style={{
+                          fontSize: 8,
+                          color: (isCurrentQuestion || status !== 'unanswered') ? 'white' : '#6B7280'
+                        }}>
+                          {getQuestionStatusIcon(status)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                
+                <View style={{ padding: 20, paddingTop: 0 }}>
+                  <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 8 }}>
+                    Legend:
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 16 }}>
+                    <Text style={{ fontSize: 12, color: '#10B981' }}>✓ Answered</Text>
+                    <Text style={{ fontSize: 12, color: '#F59E0B' }}>⏭ Skipped</Text>
+                    <Text style={{ fontSize: 12, color: '#6B7280' }}>○ Unanswered</Text>
+                    <Text style={{ fontSize: 12, color: '#3B82F6' }}>● Current</Text>
+                  </View>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Confirm Submit Modal */}
+        <Modal
+          visible={showConfirmSubmit}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setShowConfirmSubmit(false)}
+        >
+          <View style={{ 
+            flex: 1, 
+            backgroundColor: 'rgba(0,0,0,0.5)', 
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 20
+          }}>
+            <View style={{
+              backgroundColor: 'white',
+              borderRadius: 16,
+              padding: 24,
+              width: '100%',
+              maxWidth: 400
+            }}>
+              <Text style={{ 
+                fontSize: 20, 
+                fontWeight: '600', 
+                color: '#1F2937',
+                marginBottom: 16,
+                textAlign: 'center'
+              }}>
+                Submit Exam?
+              </Text>
+              
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ color: '#6B7280' }}>Answered:</Text>
+                  <Text style={{ color: '#10B981', fontWeight: '500' }}>{progressSummary.answered} questions</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ color: '#6B7280' }}>Skipped:</Text>
+                  <Text style={{ color: '#F59E0B', fontWeight: '500' }}>{progressSummary.skipped} questions</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ color: '#6B7280' }}>Unanswered:</Text>
+                  <Text style={{ color: '#EF4444', fontWeight: '500' }}>{progressSummary.unanswered} questions</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+                  <Text style={{ fontWeight: '600' }}>Completion:</Text>
+                  <Text style={{ fontWeight: '600', color: '#3B82F6' }}>{completionPercentage}%</Text>
+                </View>
+              </View>
+
+              <Text style={{ 
+                fontSize: 14, 
+                color: '#6B7280',
+                textAlign: 'center',
+                marginBottom: 24
+              }}>
+                You cannot change your answers after submission.
+              </Text>
+
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity
+                  onPress={() => setShowConfirmSubmit(false)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#F3F4F6',
+                    borderRadius: 8,
+                    paddingVertical: 12,
+                    alignItems: 'center'
+                  }}
+                >
+                  <Text style={{ color: '#374151', fontWeight: '500' }}>Review</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  onPress={confirmSubmitExam}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#3B82F6',
+                    borderRadius: 8,
+                    paddingVertical: 12,
+                    alignItems: 'center'
+                  }}
+                >
+                  <Text style={{ color: 'white', fontWeight: '500' }}>Submit Exam</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );

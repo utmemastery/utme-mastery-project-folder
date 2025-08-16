@@ -8,7 +8,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/review', FlashcardController.getFlashcardsForReview);
-router.post('/attempt', FlashcardController.submitFlashcardAttempt);
+router.post('/flashcards/review', FlashcardController.submitFlashcardReview);
 router.post('/create', FlashcardController.createFlashcard);
 
 export default router;

@@ -4,12 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMockExamStore, MockExamResult } from '../../stores/mockExamStore';
 import { useAuthStore } from '../../stores/authStore';
 
-interface MockExamResultsScreenProps {
-  navigation: any;
-  route: { params: { examId: number } };
-}
+import type { StackScreenProps } from '@react-navigation/stack';
+import type { MockExamStackParamList } from '../../navigation/types';
 
-export const MockExamResultsScreen: React.FC<MockExamResultsScreenProps> = ({ navigation, route }) => {
+type Props = StackScreenProps<MockExamStackParamList, 'MockExamResult'>;
+
+export const MockExamResultsScreen: React.FC<Props> = ({ route, navigation }) => {
   const { examId } = route.params;
   const { examResult, isLoading, error, fetchExamResult, clearError, startMockExam } = useMockExamStore();
   const { user } = useAuthStore();

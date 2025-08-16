@@ -11,40 +11,37 @@ export interface QuestionFilters {
   userId?: number;
 }
 
+interface Attempt {
+  questionId: number;
+  isCorrect: boolean;
+  attemptedAt: string | Date;
+}
+
+
 export class QuestionService {
   static async getAdaptiveQuestions(userId: number, filters: QuestionFilters, count: number = 10) {
-    // Get user's performance data
-    const userProgress = await prisma.userProgress.findMany({
-      where: { userId },
-      include: { topic: { include: { subject: true } } }
-    });
-
     const recentAttempts = await prisma.questionAttempt.findMany({
       where: { userId },
       orderBy: { attemptedAt: 'desc' },
       take: 50,
-      include: { question: true }
+      include: { question: { include: { topic: true, subject: true, options: true } } }
     });
 
-    // Calculate user's proficiency per topic
     const topicProficiency = this.calculateTopicProficiency(recentAttempts);
 
-    // Build adaptive query
-    const whereClause: any = {
-      subject: { name: filters.subject },
-    };
-
+    const whereClause: any = {};
+    if (filters.subject) whereClause.subject = { name: filters.subject };
     if (filters.topic) whereClause.topic = { name: filters.topic };
     if (filters.difficulty) whereClause.difficulty = filters.difficulty;
     if (filters.cognitiveLevel) whereClause.cognitiveLevel = filters.cognitiveLevel;
     if (filters.excludeIds?.length) whereClause.id = { notIn: filters.excludeIds };
 
-    // Adaptive difficulty selection
     const questions = await prisma.question.findMany({
       where: whereClause,
       include: {
         subject: true,
         topic: true,
+        options: true,
         questionAttempts: {
           where: { userId },
           orderBy: { attemptedAt: 'desc' },
@@ -52,16 +49,14 @@ export class QuestionService {
         }
       },
       orderBy: [
-        { difficulty: this.getDifficultyOrder(topicProficiency, filters.subject) },
+        { difficulty: this.getDifficultyOrder(topicProficiency) },
         { createdAt: 'desc' }
       ],
-      take: count * 2 // Get more to filter from
+      take: count * 2
     });
 
-    // Apply spaced repetition logic
-    const filteredQuestions = this.applySpacedRepetition(questions, recentAttempts, userId);
-    
-    // Return final selection
+    const filteredQuestions = this.applySpacedRepetition(questions, recentAttempts);
+
     return filteredQuestions.slice(0, count);
   }
 
@@ -69,16 +64,10 @@ export class QuestionService {
     const diagnosticQuestions = await Promise.all(
       subjects.map(async (subject) => {
         const questions = await prisma.question.findMany({
-          where: { 
-            subject: { name: subject },
-            isDiagnostic: true // Assume diagnostic questions are flagged
-          },
-          include: {
-            subject: true,
-            topic: true
-          },
+          where: { subject: { name: subject }, isDiagnostic: true },
+          include: { subject: true, topic: true, options: true },
           orderBy: { createdAt: 'asc' },
-          take: 10 // Standard number for diagnostic questions
+          take: 10
         });
 
         return {
@@ -87,7 +76,7 @@ export class QuestionService {
             id: q.id,
             text: q.text,
             options: q.options,
-            correctAnswer: q.correctAnswer,
+            correctAnswer: q.correctOptionId,
             difficulty: q.difficulty,
             topic: q.topic?.name ?? null
           }))
@@ -99,67 +88,62 @@ export class QuestionService {
   }
 
   static async getDiagnosticQuestionsForSubject(subject: string) {
-    if (!subject) {
-      throw new Error('Subject is required');
-    }
+    if (!subject) throw new Error('Subject is required');
 
     const questions = await prisma.question.findMany({
-      where: { 
-        subject: { name: subject },
-        isDiagnostic: true // Assume diagnostic questions are flagged
-      },
-      include: {
-        subject: true,
-        topic: true
-      },
+      where: { subject: { name: subject }, isDiagnostic: true },
+      include: { subject: true, topic: true, options: true },
       orderBy: { createdAt: 'asc' },
-      take: 10 // Standard number for diagnostic questions
+      take: 10
     });
 
-    if (questions.length === 0) {
-      throw new Error(`No diagnostic questions available for subject: ${subject}`);
-    }
+    if (questions.length === 0) throw new Error(`No diagnostic questions available for subject: ${subject}`);
 
     return questions.map(q => ({
       id: q.id,
       text: q.text,
       options: q.options,
-      correctAnswer: q.correctAnswer,
+      correctAnswer: q.correctOptionId,
       difficulty: q.difficulty,
       topic: q.topic?.name ?? null
     }));
   }
 
-  static async generateMockExamQuestions({ subjects, questionCount, userId }: { subjects: string[]; questionCount: number; userId: number }) {
-    // Distribute questions evenly across subjects
-    const questionsPerSubject = Math.floor(questionCount / subjects.length);
-    const remainingQuestions = questionCount % subjects.length;
+  static async generateMockExamQuestions({ 
+  subjects, 
+  questionCount,
+  userId
+}: { 
+  subjects: string[]; 
+  questionCount: number; 
+  userId: number; 
+}) {
+  const questionsPerSubject = Math.floor(questionCount / subjects.length);
+  const remainingQuestions = questionCount % subjects.length;
 
-    const questions = await Promise.all(
-      subjects.map(async (subject, index) => {
-        const count = questionsPerSubject + (index < remainingQuestions ? 1 : 0);
-        return prisma.question.findMany({
-          where: { subject: { name: subject } },
-          select: { id: true, sectionId: true },
-          take: count,
-          orderBy: { createdAt: 'desc' }
-        });
-      })
-    );
+  const questions = await Promise.all(
+    subjects.map(async (subject, index) => {
+      const count = questionsPerSubject + (index < remainingQuestions ? 1 : 0);
+      return prisma.question.findMany({
+        where: { subject: { name: subject } }, // You could add userId filtering here if needed
+        include: { topic: { select: { sectionId: true } } },
+        take: count,
+        orderBy: { createdAt: 'desc' }
+      });
+    })
+  );
 
-    // Flatten and map to required format
-    const result = questions.flat().map(q => ({
-      questionId: q.id,
-      sectionId: q.sectionId ?? undefined
-    }));
+  const result = questions.flat().map(q => ({
+    questionId: q.id,
+    sectionId: q.topic?.sectionId ?? undefined
+  }));
 
-    // Ensure enough questions
-    if (result.length < questionCount) {
-      throw new Error('Not enough questions available for the selected subjects');
-    }
+  if (result.length < questionCount) 
+    throw new Error('Not enough questions available for the selected subjects');
 
-    return result.slice(0, questionCount);
-  }
+  return result.slice(0, questionCount);
+}
+
 
   static async submitQuestionAttempt({
     userId,
@@ -170,26 +154,25 @@ export class QuestionService {
   }: {
     userId: number;
     questionId: number;
-    selectedOption: number;
+    selectedOption: string | number; // Accept both, convert to string for Prisma
     timeTaken: number;
-    practiceSessionId?: number;
+    practiceSessionId?: string;
   }) {
     const question = await prisma.question.findUnique({
       where: { id: questionId },
-      include: { topic: true }
+      include: { topic: true, options: true }
     });
 
-    if (!question) {
-      throw new Error('Question not found');
-    }
+    if (!question) throw new Error('Question not found');
 
-    const isCorrect = selectedOption === question.correctAnswer;
+    const selectedOptionId = typeof selectedOption === 'number' ? selectedOption.toString() : selectedOption;
+    const isCorrect = selectedOptionId === question.correctOptionId?.toString();
 
     const attempt = await prisma.questionAttempt.create({
       data: {
         userId,
         questionId,
-        selectedOption,
+        selectedOption: selectedOptionId,
         isCorrect,
         timeTaken,
         practiceSessionId,
@@ -197,9 +180,7 @@ export class QuestionService {
       }
     });
 
-    if (question.topicId) {
-      await this.updateUserProgress(userId, question.topicId, isCorrect, timeTaken);
-    }
+    if (question.topicId) await this.updateUserProgress(userId, question.topicId, isCorrect);
 
     await this.updateStreak(userId, isCorrect);
 
@@ -218,9 +199,7 @@ export class QuestionService {
       const topicId = attempt.question.topicId;
       if (!topicId) return;
 
-      if (!topicStats[topicId]) {
-        topicStats[topicId] = { total: 0, correct: 0 };
-      }
+      if (!topicStats[topicId]) topicStats[topicId] = { total: 0, correct: 0 };
       topicStats[topicId].total++;
       if (attempt.isCorrect) topicStats[topicId].correct++;
     });
@@ -233,56 +212,59 @@ export class QuestionService {
     return proficiency;
   }
 
-  private static getDifficultyOrder(proficiency: Record<number, number>, subject?: string) {
+  private static getDifficultyOrder(proficiency: Record<number, number>) {
     const avgProficiency = Object.values(proficiency).reduce((sum, p) => sum + p, 0) / Object.keys(proficiency).length || 0;
-    
     if (avgProficiency < 0.4) return 'asc';
     if (avgProficiency > 0.8) return 'desc';
     return 'asc';
   }
 
-  private static applySpacedRepetition(questions: any[], recentAttempts: any[], userId: number) {
-    const attemptsByQuestion = recentAttempts.reduce((acc, attempt) => {
-      if (!acc[attempt.questionId]) acc[attempt.questionId] = [];
-      acc[attempt.questionId].push(attempt);
-      return acc;
-    }, {});
+private static applySpacedRepetition(
+  questions: { id: number; text: string; options?: any[]; subject?: { name: string }; topic?: { name: string } | null; difficulty: string }[],
+  recentAttempts: Attempt[]
+) {
+  const attemptsByQuestion = recentAttempts.reduce((acc, attempt) => {
+    if (!acc[attempt.questionId]) acc[attempt.questionId] = [];
+    acc[attempt.questionId].push(attempt);
+    return acc;
+  }, {} as Record<number, Attempt[]>);
 
-    return questions.filter(question => {
-      const questionAttempts = attemptsByQuestion[question.id] || [];
-      
-      if (questionAttempts.length === 0) return true;
-      
-      const lastAttempt = questionAttempts[0];
-      const daysSinceAttempt = (Date.now() - new Date(lastAttempt.attemptedAt).getTime()) / (1000 * 60 * 60 * 24);
-      
-      if (lastAttempt.isCorrect) {
-        const correctAttempts = questionAttempts.filter(a => a.isCorrect).length;
-        const interval = Math.pow(2, correctAttempts);
-        return daysSinceAttempt >= interval;
-      } else {
-        return daysSinceAttempt >= 1;
-      }
-    }).map(question => ({
-      id: question.id,
-      text: question.text,
-      options: question.options,
-      subject: question.subject.name,
-      topic: question.topic?.name ?? null,
-      difficulty: question.difficulty
-    }));
-  }
+  return questions.filter(question => {
+    const questionAttempts = attemptsByQuestion[question.id] || [];
 
-  private static async updateUserProgress(userId: number, topicId: number, isCorrect: boolean, timeTaken: number) {
-    const existingProgress = await prisma.userProgress.findUnique({
-      where: { userId_topicId: { userId, topicId } }
+    if (questionAttempts.length === 0) return true;
+
+    const lastAttempt = questionAttempts[0];
+    const daysSinceAttempt = (Date.now() - new Date(lastAttempt.attemptedAt).getTime()) / (1000 * 60 * 60 * 24);
+
+    if (lastAttempt.isCorrect) {
+      const correctAttempts = questionAttempts.filter((a: Attempt) => a.isCorrect).length;
+      const interval = Math.pow(2, correctAttempts);
+      return daysSinceAttempt >= interval;
+    } else {
+      return daysSinceAttempt >= 1;
+    }
+  }).map(question => ({
+    id: question.id,
+    text: question.text,
+    options: question.options ?? [],
+    subject: question.subject?.name ?? '',
+    topic: question.topic?.name ?? null,
+    difficulty: question.difficulty
+  }));
+}
+
+
+  private static async updateUserProgress(userId: number, topicId: number, isCorrect: boolean) {
+    const existingProgress = await prisma.userProgress.findFirst({
+      where: { userId, topicId }
     });
 
     if (existingProgress) {
       await prisma.userProgress.update({
-        where: { userId_topicId: { userId, topicId } },
+        where: { id: existingProgress.id },
         data: {
-          masteryScore: existingProgress.masteryScore + (isCorrect ? 1 : 0),
+          masteryScore: (existingProgress.masteryScore ?? 0) + (isCorrect ? 1 : 0),
           lastReviewed: new Date()
         }
       });
@@ -302,41 +284,20 @@ export class QuestionService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const currentStreak = await prisma.streak.findFirst({
-      where: { userId },
-      orderBy: { lastActive: 'desc' }
-    });
+    const currentStreak = await prisma.streak.findFirst({ where: { userId }, orderBy: { lastActive: 'desc' } });
 
     if (!currentStreak) {
-      await prisma.streak.create({
-        data: {
-          userId,
-          count: 1,
-          lastActive: today
-        }
-      });
+      await prisma.streak.create({ data: { userId, count: 1, lastActive: today } });
     } else {
       const lastUpdate = new Date(currentStreak.lastActive);
       lastUpdate.setHours(0, 0, 0, 0);
-      
+
       const diffDays = (today.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24);
-      
+
       if (diffDays === 1) {
-        await prisma.streak.update({
-          where: { id: currentStreak.id },
-          data: {
-            count: currentStreak.count + 1,
-            lastActive: today
-          }
-        });
+        await prisma.streak.update({ where: { id: currentStreak.id }, data: { count: currentStreak.count + 1, lastActive: today } });
       } else if (diffDays > 1) {
-        await prisma.streak.update({
-          where: { id: currentStreak.id },
-          data: {
-            count: 1,
-            lastActive: today
-          }
-        });
+        await prisma.streak.update({ where: { id: currentStreak.id }, data: { count: 1, lastActive: today } });
       }
     }
   }

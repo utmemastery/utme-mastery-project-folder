@@ -50,67 +50,84 @@ export interface StudyPlan {
   completionRate: number; // Added for frontend
 }
 
+type DiagnosticResult = {
+  subject: string;
+  proficiency: number;
+};
+
 export class StudyPlanService {
-  static async generateStudyPlan(userId: number): Promise<StudyPlan> {
-    // Validate userId
-    if (!Number.isInteger(userId) || userId <= 0) {
-      throw new Error('Invalid user ID');
-    }
-
-    // Get user data
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        selectedSubjects: true,
-        aspiringCourse: true,
-        goalScore: true,
-        learningStyle: true,
-        diagnosticResults: true
-      }
-    });
-
-    if (!user) throw new Error('User not found');
-
-    // Validate course-subject compatibility
-    if (user.aspiringCourse && COURSE_SUBJECT_REQUIREMENTS[user.aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS]) {
-      const requiredSubjects = COURSE_SUBJECT_REQUIREMENTS[user.aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS];
-      const missingSubjects = requiredSubjects.filter(subject => !user.selectedSubjects.includes(subject));
-      if (missingSubjects.length > 0) {
-        throw new Error(`Missing required subjects for ${user.aspiringCourse}: ${missingSubjects.join(', ')}`);
-      }
-    }
-
-    // Get user analytics and weak topics
-    const [analytics, weakTopics] = await Promise.all([
-      AnalyticsService.getUserAnalytics(userId),
-      AnalyticsService.getWeakTopics(userId, 5)
-    ]);
-
-    // Prioritize subjects based on diagnosticResults if available
-    let prioritizedSubjects = user.selectedSubjects;
-    if (user.diagnosticResults && Array.isArray(user.diagnosticResults)) {
-      prioritizedSubjects = user.diagnosticResults
-        .sort((a, b) => a.proficiency - b.proficiency)
-        .map((r: { subject: string; proficiency: number }) => r.subject)
-        .filter(subject => user.selectedSubjects.includes(subject));
-      prioritizedSubjects = [...new Set([...prioritizedSubjects, ...user.selectedSubjects])];
-    }
-
-    // Generate weekly study plan
-    const weekPlan: StudyPlan[] = [];
-    
-    for (let i = 0; i < 7; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() + i);
-      date.setHours(0, 0, 0, 0);
-
-      const dayPlan = await this.generateDayPlan(userId, date, analytics, weakTopics, user, prioritizedSubjects);
-      weekPlan.push(dayPlan);
-    }
-
-    return weekPlan[0]; // Return today's plan
+static async generateStudyPlan(userId: number): Promise<StudyPlan> {
+  // Validate userId
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new Error('Invalid user ID');
   }
+
+  // Get user data
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      selectedSubjects: true,
+      aspiringCourse: true,
+      goalScore: true,
+      learningStyle: true,
+      diagnosticResults: true
+    }
+  });
+
+  if (!user) throw new Error('User not found');
+
+  // Validate course-subject compatibility
+  if (user.aspiringCourse && COURSE_SUBJECT_REQUIREMENTS[user.aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS]) {
+    const requiredSubjects = COURSE_SUBJECT_REQUIREMENTS[user.aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS];
+    const missingSubjects = requiredSubjects.filter(subject => !user.selectedSubjects.includes(subject));
+    if (missingSubjects.length > 0) {
+      throw new Error(`Missing required subjects for ${user.aspiringCourse}: ${missingSubjects.join(', ')}`);
+    }
+  }
+
+  // Get user analytics and weak topics
+  const [analytics, weakTopics] = await Promise.all([
+    AnalyticsService.getUserAnalytics(userId),
+    AnalyticsService.getWeakTopics(userId, 5)
+  ]);
+
+  // Type guard to ensure proper diagnostic structure
+  function isDiagnosticResult(value: any): value is DiagnosticResult {
+    return value && typeof value === 'object' &&
+           'subject' in value && typeof value.subject === 'string' &&
+           'proficiency' in value && typeof value.proficiency === 'number';
+  }
+
+  // Prioritize subjects based on diagnosticResults if available
+  let prioritizedSubjects = user.selectedSubjects;
+
+  if (user.diagnosticResults && Array.isArray(user.diagnosticResults)) {
+    const validDiagnostics = user.diagnosticResults.filter(isDiagnosticResult);
+
+    prioritizedSubjects = validDiagnostics
+      .sort((a, b) => a.proficiency - b.proficiency)
+      .map(r => r.subject)
+      .filter(subject => user.selectedSubjects.includes(subject));
+
+    // Merge with original selectedSubjects while keeping order and uniqueness
+    prioritizedSubjects = [...new Set([...prioritizedSubjects, ...user.selectedSubjects])];
+  }
+
+  // Generate weekly study plan
+  const weekPlan: StudyPlan[] = [];
+
+  for (let i = 0; i < 7; i++) {
+    const date = new Date();
+    date.setDate(date.getDate() + i);
+    date.setHours(0, 0, 0, 0);
+
+    const dayPlan = await this.generateDayPlan(userId, date, analytics, weakTopics, user, prioritizedSubjects);
+    weekPlan.push(dayPlan);
+  }
+
+  return weekPlan[0]; // Return today's plan
+}
 
   static async regenerateStudyPlan(userId: number): Promise<StudyPlan> {
     const today = new Date();

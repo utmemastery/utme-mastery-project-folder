@@ -1,4 +1,3 @@
-// mobile/src/navigation/AppNavigator.tsx
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -18,18 +17,35 @@ export const AppNavigator = () => {
   useEffect(() => {
     const initializeApp = async () => {
       await initializeAuth();
+      // Temporary: Clear AsyncStorage for testing
+      await AsyncStorage.multiRemove(['onboardingProgress', 'assessmentProgress', 'cached_profile']);
+      console.log('Cleared AsyncStorage for testing');
       setIsInitializing(false);
     };
 
     initializeApp();
   }, []);
 
+  useEffect(() => {
+    console.log('AppNavigator state:', {
+      isAuthenticated,
+      isLoading,
+      isInitializing,
+      onboardingDone: user?.onboardingDone,
+      user: user ? { ...user, diagnosticResults: user.diagnosticResults?.length } : null
+    });
+  }, [isAuthenticated, isLoading, isInitializing, user]);
+
   if (isInitializing || isLoading) {
     return <LoadingScreen />;
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      onStateChange={(state) => {
+        console.log('Navigation state changed:', JSON.stringify(state, null, 2));
+      }}
+    >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <Stack.Screen name="Auth" component={AuthNavigator} />
