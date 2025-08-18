@@ -68,6 +68,7 @@ export class UserController {
 static async updateProfile(req: AuthRequest, res: Response) {
   try {
     const userId = req.user!.id;
+
     let {
       firstName,
       lastName,
@@ -83,21 +84,21 @@ static async updateProfile(req: AuthRequest, res: Response) {
       examYear,
       dateOfBirth,
       state,
-      school
+      school,
+      onboardingDone, // 👈 capture from request body
     } = req.body;
 
-    console.log(JSON.stringify(req.body, null, 2));
+    console.log("Update profile payload:", JSON.stringify(req.body, null, 2));
 
-
-    // Validate userId
+    // --- Validate userId ---
     if (!Number.isInteger(userId) || userId <= 0) {
-      return res.status(400).json({ error: 'Invalid user ID' });
+      return res.status(400).json({ error: "Invalid user ID" });
     }
 
-    // Normalize selectedSubjects if provided
+    // --- Validate selectedSubjects ---
     if (selectedSubjects) {
       if (!Array.isArray(selectedSubjects)) {
-        return res.status(400).json({ error: 'selectedSubjects must be an array of strings' });
+        return res.status(400).json({ error: "selectedSubjects must be an array of strings" });
       }
 
       const normalizedSubjects = selectedSubjects.map(
@@ -105,47 +106,60 @@ static async updateProfile(req: AuthRequest, res: Response) {
       );
       selectedSubjects = normalizedSubjects;
 
-      console.log(`Normalized subjects: ${JSON.stringify(selectedSubjects)}`);
-
-      // Validate against DB
       const validSubjects = await prisma.subject.findMany({
         where: { name: { in: selectedSubjects } },
-        select: { name: true }
+        select: { name: true },
       });
+
       if (validSubjects.length !== selectedSubjects.length) {
         const invalidSubjects = selectedSubjects.filter(
-          (s: string) => !validSubjects.some(v => v.name === s)
+          (s: string) => !validSubjects.some((v) => v.name === s)
         );
-        return res.status(400).json({ error: `Invalid subjects: ${invalidSubjects.join(', ')}` });
+        return res.status(400).json({ error: `Invalid subjects: ${invalidSubjects.join(", ")}` });
       }
 
       // Validate course-subject compatibility
-      if (aspiringCourse && COURSE_SUBJECT_REQUIREMENTS[aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS]) {
-        const requiredSubjects = COURSE_SUBJECT_REQUIREMENTS[aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS];
-        const missingSubjects = requiredSubjects.filter(subject => !selectedSubjects.includes(subject));
+      if (
+        aspiringCourse &&
+        COURSE_SUBJECT_REQUIREMENTS[aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS]
+      ) {
+        const requiredSubjects =
+          COURSE_SUBJECT_REQUIREMENTS[aspiringCourse as keyof typeof COURSE_SUBJECT_REQUIREMENTS];
+        const missingSubjects = requiredSubjects.filter(
+          (subject) => !selectedSubjects.includes(subject)
+        );
         if (missingSubjects.length > 0) {
-          return res.status(400).json({ 
-            error: `Missing required subjects for ${aspiringCourse}: ${missingSubjects.join(', ')}` 
+          return res.status(400).json({
+            error: `Missing required subjects for ${aspiringCourse}: ${missingSubjects.join(", ")}`,
           });
         }
       }
     }
 
-    // Validate goalScore
-    if (goalScore !== undefined && (typeof goalScore !== 'number' || goalScore < 0 || goalScore > 400)) {
-      return res.status(400).json({ error: 'Goal score must be a number between 0 and 400' });
+    // --- Validate goalScore ---
+    if (
+      goalScore !== undefined &&
+      (typeof goalScore !== "number" || goalScore < 0 || goalScore > 400)
+    ) {
+      return res.status(400).json({ error: "Goal score must be a number between 0 and 400" });
     }
 
-    // Validate diagnosticResults
+    // --- Validate diagnosticResults ---
     if (diagnosticResults) {
-      if (!Array.isArray(diagnosticResults) || !diagnosticResults.every(
-        (r: any) => typeof r.subject === 'string' && typeof r.proficiency === 'number'
-      )) {
-        return res.status(400).json({ error: 'diagnosticResults must be an array of { subject: string, proficiency: number }' });
+      if (
+        !Array.isArray(diagnosticResults) ||
+        !diagnosticResults.every(
+          (r: any) => typeof r.subject === "string" && typeof r.proficiency === "number"
+        )
+      ) {
+        return res.status(400).json({
+          error: "diagnosticResults must be an array of { subject: string, proficiency: number }",
+        });
       }
     }
 
-    const updateData = {
+    // --- Build updateData dynamically (don’t overwrite with undefined) ---
+    const updateData: any = {
       firstName,
       lastName,
       phoneNumber,
@@ -155,15 +169,19 @@ static async updateProfile(req: AuthRequest, res: Response) {
       goalScore,
       learningStyle,
       diagnosticResults,
-      onboardingDone: true,
       preferredStudyTime,
       studyReminders,
       examYear,
       dateOfBirth,
       state,
-      school
+      school,
     };
 
+    if (onboardingDone !== undefined) {
+      updateData.onboardingDone = onboardingDone; // ✅ only updates when sent
+    }
+
+    // --- Update user ---
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: updateData,
@@ -184,16 +202,20 @@ static async updateProfile(req: AuthRequest, res: Response) {
         examYear: true,
         dateOfBirth: true,
         state: true,
-        school: true
-      }
+        school: true,
+        diagnosticResults: true,
+      },
     });
 
-    res.json({ profile: updatedUser, message: 'Profile updated successfully' });
-
+    return res.json({ user: updatedUser, message: "Profile updated successfully" });
   } catch (error: any) {
-    res.status(error.message.includes('Invalid') ? 400 : 500).json({ error: `Failed to update profile: ${error.message}` });
+    console.error("Update profile error:", error);
+    return res
+      .status(error.message.includes("Invalid") ? 400 : 500)
+      .json({ error: `Failed to update profile: ${error.message}` });
   }
 }
+
 
 
   static async uploadProfileImage(req: AuthRequest, res: Response) {

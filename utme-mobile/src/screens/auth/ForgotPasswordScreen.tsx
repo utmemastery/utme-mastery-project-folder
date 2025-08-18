@@ -1,125 +1,91 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, ScrollView, KeyboardAvoidingView, Platform, Animated, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuthStore } from '../../stores/authStore';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { StackScreenProps } from '@react-navigation/stack';
 import { AuthStackParamList } from '../../navigation/types';
+import { useAuthStore } from '../../stores/authStore';
+import { ForgotPasswordHeader } from '../../components/forgot-password/ForgotPasswordHeader';
+import { ForgotPasswordForm } from '../../components/forgot-password/ForgotPasswordForm';
+import { HelpSection } from '../../components/forgot-password/HelpSection';
+import { ForgotPasswordFooter } from '../../components/forgot-password/ForgotPasswordFooter';
+import { useScreenAnimation } from '../../hooks/useScreenAnimation';
+import { COLORS, LAYOUT } from '../../constants';
 
 type ForgotPasswordScreenProps = StackScreenProps<AuthStackParamList, 'ForgotPassword'>;
 
 export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation }) => {
-  const [email, setEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
+  const { fadeAnim, slideAnim } = useScreenAnimation();
+  const { isAuthenticated, user } = useAuthStore();
 
-  const { forgotPassword, isLoading, error, clearError } = useAuthStore();
-
-  const validateForm = () => {
-    let isValid = true;
-
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email) {
-      setEmailError('Email is required');
-      isValid = false;
-    } else if (!emailRegex.test(email)) {
-      setEmailError('Please enter a valid email');
-      isValid = false;
-    } else {
-      setEmailError('');
+  useEffect(() => {
+    if (isAuthenticated && user?.emailVerified) {
+      if (user.onboardingDone) {
+        navigation.replace('MainTabs');
+      } else {
+        navigation.replace('Onboarding');
+      }
     }
-
-    return isValid;
-  };
-
-  const handleForgotPassword = async () => {
-    if (!validateForm()) return;
-
-    clearError();
-
-    try {
-      await forgotPassword(email);
-      Alert.alert(
-        'Success',
-        'A password reset link has been sent to your email',
-        [
-          { 
-            text: 'OK', 
-            onPress: () => navigation.navigate('Login') 
-          }
-        ]
-      );
-    } catch (error) {
-      // Error is handled by the store
-    }
-  };
+  }, [isAuthenticated, user, navigation]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
-          <View style={{ flex: 1, padding: 24 }}>
-            {/* Header */}
-            <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 40 }}>
-              <View style={{
-                width: 80,
-                height: 80,
-                backgroundColor: '#3B82F6',
-                borderRadius: 40,
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginBottom: 16
-              }}>
-                <Text style={{ fontSize: 32, color: 'white' }}>🔒</Text>
-              </View>
-              <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
-                Reset Password
-              </Text>
-              <Text style={{ fontSize: 16, color: '#6B7280', textAlign: 'center', lineHeight: 24 }}>
-                Enter your email to receive a password reset link
-              </Text>
-            </View>
-
-            {/* Form */}
-            <View style={{ flex: 1 }}>
-              <Input
-                label="Email Address"
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                error={emailError}
-              />
-
-              {error && (
-                <Text style={{ color: '#EF4444', fontSize: 14, marginBottom: 16, textAlign: 'center' }}>
-                  {error}
-                </Text>
-              )}
-
-              <Button
-                title="Send Reset Link"
-                onPress={handleForgotPassword}
-                loading={isLoading}
-                style={{ marginBottom: 16 }}
-              />
-
-              {/* Back to Login Link */}
-              <View style={{ alignItems: 'center', marginTop: 'auto', paddingBottom: 32 }}>
-                <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                  <Text style={{ color: '#6B7280', fontSize: 14 }}>
-                    ← Back to Sign In
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    <View style={styles.container}>
+      <View style={styles.orbTop} />
+      <View style={styles.orbBottom} />
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoiding}
+        >
+          <ScrollView contentContainerStyle={styles.scrollView}>
+            <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+              <ForgotPasswordHeader />
+              <ForgotPasswordForm navigation={navigation} />
+              <HelpSection />
+              <ForgotPasswordFooter navigation={navigation} />
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: { 
+    flex: 1, 
+    backgroundColor: COLORS.background
+  },
+  orbTop: {
+    position: 'absolute',
+    top: LAYOUT.orbTopOffset,
+    right: -0.25 * LAYOUT.orbTopSize,
+    width: LAYOUT.orbTopSize,
+    height: LAYOUT.orbTopSize,
+    borderRadius: LAYOUT.orbTopSize / 2,
+    backgroundColor: COLORS.orbBlue,
+    transform: [{ rotate: '20deg' }],
+  },
+  orbBottom: {
+    position: 'absolute',
+    bottom: LAYOUT.orbBottomOffset,
+    left: -0.2 * LAYOUT.orbBottomSize,
+    width: LAYOUT.orbBottomSize,
+    height: LAYOUT.orbBottomSize,
+    borderRadius: LAYOUT.orbBottomSize / 2,
+    backgroundColor: COLORS.orbGold,
+    transform: [{ rotate: '-40deg' }],
+  },
+  safeArea: { 
+    flex: 1 
+  },
+  keyboardAvoiding: { 
+    flex: 1 
+  },
+  scrollView: { 
+    flexGrow: 1 
+  },
+  content: { 
+    flex: 1, 
+    padding: 24 
+  },
+});

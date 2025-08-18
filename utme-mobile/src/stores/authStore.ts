@@ -19,6 +19,9 @@ interface AuthState {
   updateProfile: (data: Partial<User>) => Promise<void>;
   initializeAuth: () => Promise<void>;
   clearError: () => void;
+
+  // 👇 NEW
+  setOnboardingDone: (done: boolean) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -123,7 +126,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         aspiringCourse: data.aspiringCourse ?? response.data.user.aspiringCourse ?? currentUser?.aspiringCourse,
         goalScore: data.goalScore ?? response.data.user.goalScore ?? currentUser?.goalScore,
         learningStyle: data.learningStyle ?? response.data.user.learningStyle ?? currentUser?.learningStyle,
-        diagnosticResults: data.diagnosticResults ?? response.data.user.diagnosticResults ?? currentUser?.diagnosticResults
+        diagnosticResults: data.diagnosticResults ?? response.data.user.diagnosticResults ?? currentUser?.diagnosticResults,
       };
       set({ user: updatedUser, isLoading: false });
       console.log('Updated user state:', updatedUser);
@@ -151,4 +154,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  // 👇 NEW IMPLEMENTATION
+  setOnboardingDone: async (done: boolean) => {
+    const { user } = get();
+    if (!user) return;
+
+    try {
+      await get().updateProfile({ onboardingDone: done });
+    } catch (error) {
+      Sentry.captureException(error);
+      throw error;
+    }
+  },
 }));

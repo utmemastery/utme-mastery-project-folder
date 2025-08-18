@@ -12,23 +12,56 @@ export type AuthStackParamList = {
   MainTabs: undefined;
 };
 
-export type RootStackParamList = {
-  Auth: undefined;
-  EmailVerification: { email: string };
+export type OnboardingStackParamList = {
   Welcome: undefined;
   SubjectSelection: undefined;
   CourseSelection: { selectedSubjects: string[] };
-  GoalSetting: { selectedSubjects: string[]; aspiringCourse: string; suggestedScore: number };
-  DiagnosticAssessment: { selectedSubjects: string[]; aspiringCourse: string; goalScore: number; learningStyle: string };
-  AssessmentResults: { subjectProficiency: Array<{ subject: string; proficiency: number }>; goalScore: number; aspiringCourse: string };
-  MainTabs: undefined;
-  Onboarding: undefined;
+  GoalSetting: {
+    selectedSubjects: string[];
+    aspiringCourse: string;
+    suggestedScore: number;
+  };
+  DiagnosticAssessment: {
+    selectedSubjects: string[];
+    aspiringCourse: string;
+    goalScore: number;
+    learningStyle: string;
+  };
+  AssessmentResults: {
+    subjectProficiency: Array<{ subject: string; proficiency: number }>;
+    goalScore: number;
+    aspiringCourse: string;
+    selectedSubjects: string[];
+    learningStyle: string;
+  };
 };
 
-// types/navigation.ts
+export type RootStackParamList = {
+  Auth: undefined;           // Points to AuthStack
+  MainTabs: undefined;       // Points to MainTabs stack
+  Onboarding: undefined;     // Points to Onboarding stack
+};
+
+export type DashboardStackParamList = {
+  DashboardHome: undefined;
+  SubjectDetail: { subject: string };
+  WeakTopics: undefined;
+  TopicPractice: { topicId: number };
+  StudyPlan: undefined;
+};
+
+
+export type MainTabParamList = {
+  Dashboard: undefined;
+  Practice: undefined;
+  Flashcards: undefined;
+  MockExam: undefined;
+  Profile: undefined;
+};
+
 export type MockExamStackParamList = {
   MockExamHome: undefined;
-  MockExamSession: undefined; // example param
+  MockExamSession: undefined;
   MockExamResult: { examId: number };
   MockExamHistory: undefined;
 };

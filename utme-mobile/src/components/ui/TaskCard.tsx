@@ -1,13 +1,17 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { globalStyles } from '../../styles/global';
+import { COLORS, SIZES } from '../../constants';
 
-// Task Card Component
 interface TaskCardProps {
   title: string;
   description: string;
   progress: number;
   icon: string;
   completed: boolean;
+  difficulty?: string; // Optional difficulty level
+  subject?: string;    // Optional subject for filtering
+  accessibilityLabel?: string;
   onPress: () => void;
 }
 
@@ -17,66 +21,73 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   progress,
   icon,
   completed,
-  onPress
+  subject,
+  difficulty,
+  accessibilityLabel,
+  onPress,
 }) => (
   <TouchableOpacity
     onPress={onPress}
-    style={{
-      backgroundColor: 'white',
-      borderRadius: 12,
-      padding: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
-      elevation: 1
-    }}
+    style={[globalStyles.cardContainer, { backgroundColor: COLORS.formBackground, borderColor: COLORS.formBorder }]}
+    accessibilityLabel={accessibilityLabel ?? `${title}, ${completed ? 'completed' : `${Math.round(progress * 100)}% progress`}`}
+    accessibilityRole="button"
+    accessibilityHint={`Practice ${title}`}
   >
-    <View style={{
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: completed ? '#F0FDF4' : '#F3F4F6',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 12
-    }}>
-      <Text style={{ fontSize: 20 }}>
-        {completed ? '✅' : icon}
-      </Text>
+    {/* Icon */}
+    <View style={[styles.iconContainer, { backgroundColor: completed ? COLORS.success : COLORS.primaryLight }]}>
+      <Text style={styles.icon}>{completed ? '✅' : icon}</Text>
     </View>
-    <View style={{ flex: 1 }}>
-      <Text style={{ 
-        fontSize: 16, 
-        fontWeight: '600', 
-        color: '#1F2937',
-        marginBottom: 2
-      }}>
-        {title}
-      </Text>
-      <Text style={{ 
-        fontSize: 14, 
-        color: '#6B7280',
-        marginBottom: 8
-      }}>
-        {description}
-      </Text>
-      {/* Progress Bar */}
-      <View style={{ 
-        height: 4, 
-        backgroundColor: '#E5E7EB', 
-        borderRadius: 2, 
-        overflow: 'hidden' 
-      }}>
-        <View style={{ 
-          height: '100%', 
-          backgroundColor: completed ? '#10B981' : '#3B82F6',
-          width: `${progress * 100}%`
-        }} />
+
+    {/* Content */}
+    <View style={styles.content}>
+      <Text style={[globalStyles.text, { color: COLORS.textPrimary, fontWeight: 'bold' }]}>{title}</Text>
+
+      {subject && (
+        <Text style={[globalStyles.subText, { color: COLORS.textSecondary }]}>
+          Subject: {subject}
+        </Text>
+      )}
+
+      {difficulty && (
+        <Text style={[globalStyles.subText, { color: COLORS.textSecondary }]}>
+          Difficulty: {difficulty}
+        </Text>
+      )}
+
+      <Text style={[globalStyles.subText, { color: COLORS.textSecondary }]}>{description}</Text>
+
+      <View style={globalStyles.progressBar}>
+        <View
+          style={[
+            globalStyles.progressFill,
+            { width: `${progress * 100}%`, backgroundColor: completed ? COLORS.success : COLORS.primary },
+          ]}
+        />
       </View>
     </View>
-    <Text style={{ color: '#6B7280', fontSize: 14 }}>→</Text>
+
+    <Text style={styles.arrow}>→</Text>
   </TouchableOpacity>
 );
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  icon: {
+    fontSize: SIZES.icon,
+    color: COLORS.white,
+  },
+  content: {
+    flex: 1,
+  },
+  arrow: {
+    color: COLORS.textSecondary,
+    fontSize: SIZES.mediumText,
+  },
+});

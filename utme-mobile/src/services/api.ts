@@ -13,6 +13,11 @@ const api = axios.create({
   },
 });
 
+console.log("Base URL being used:", api.defaults.baseURL);
+
+console.log("API_URL from .env:", API_URL);
+
+
 // Request interceptor → Add Bearer token from SecureStore
 // Request interceptor → Add Bearer token from SecureStore
 api.interceptors.request.use(

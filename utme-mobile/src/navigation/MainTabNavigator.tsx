@@ -1,6 +1,7 @@
 // mobile/src/navigation/MainTabNavigator.tsx
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { MainTabParamList } from './types';
 import { View, Text } from 'react-native';
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
 import { PracticeNavigator } from './PracticeNavigator';
@@ -8,7 +9,7 @@ import { FlashcardNavigator } from './FlashcardNavigator';
 import { MockExamNavigator } from './MockExamNavigator';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 
-const Tab = createBottomTabNavigator();
+const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const TabIcon: React.FC<{ 
   name: string; 

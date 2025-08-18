@@ -1,7 +1,7 @@
-// mobile/src/screens/DashboardScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Animated, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { RefreshControl } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { useAnalyticsStore } from '../../stores/analyticsStore';
 import { CircularProgress } from '../../components/ui/CircularProgress';
@@ -9,6 +9,12 @@ import { StatCard } from '../../components/ui/StatCard';
 import { SubjectCard } from '../../components/ui/SubjectCard';
 import { TaskCard } from '../../components/ui/TaskCard';
 import { ActionButton } from '../../components/ui/ActionButton';
+import { Button } from '../../components/ui/Button';
+import { useScreenAnimation } from '../../hooks/useScreenAnimation';
+import { usePulseAnimation } from '../../hooks/usePulseAnimation';
+import { globalStyles } from '../../styles/global';
+import { onboardingStyles } from '../../styles/onboarding';
+import { COLORS, SIZES, LAYOUT } from '../../constants';
 
 interface DashboardScreenProps {
   navigation: any;
@@ -16,15 +22,10 @@ interface DashboardScreenProps {
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const { user } = useAuthStore();
-  const { 
-    analytics, 
-    isLoading, 
-    fetchUserAnalytics, 
-    dailyStats,
-    weakTopics 
-  } = useAnalyticsStore();
-  
+  const { analytics, isLoading, fetchUserAnalytics, dailyStats, weakTopics } = useAnalyticsStore();
   const [refreshing, setRefreshing] = useState(false);
+  const { fadeAnim, slideAnim } = useScreenAnimation();
+  const { pulseAnim } = usePulseAnimation();
 
   useEffect(() => {
     fetchUserAnalytics();
@@ -45,7 +46,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
 
   const calculateOverallProgress = () => {
     if (!analytics?.subjectPerformance) return 0;
-    const avgAccuracy = analytics.subjectPerformance.reduce((sum, subject) => {
+    const avgAccuracy = analytics.subjectPerformance.reduce((sum: number, subject: any) => {
       const accuracy = subject.total_questions > 0 ? (subject.correct_answers / subject.total_questions) * 100 : 0;
       return sum + accuracy;
     }, 0) / analytics.subjectPerformance.length;
@@ -57,183 +58,264 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     return Math.round(200 + (progress / 100) * 200);
   };
 
+  const getSubjectColor = (accuracy: number) => {
+    if (accuracy >= 80) return COLORS.success;
+    if (accuracy >= 60) return COLORS.primary;
+    if (accuracy >= 40) return COLORS.warning;
+    return COLORS.error;
+  };
+
+  const chartData = {
+    labels: analytics?.subjectPerformance?.map((s: any) => s.subject) || [],
+    datasets: [
+      {
+        data: analytics?.subjectPerformance?.map((s: any) =>
+          s.total_questions > 0 ? Math.round((s.correct_answers / s.total_questions) * 100) : 0
+        ) || [],
+        backgroundColor: analytics?.subjectPerformance?.map((s: any) =>
+          getSubjectColor(s.total_questions > 0 ? (s.correct_answers / s.total_questions) * 100 : 0)
+        ) || [],
+      },
+    ],
+  };
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
-      <ScrollView 
-        style={{ flex: 1 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
-        <View style={{ padding: 24 }}>
-          {/* Header */}
-          <View style={{ marginBottom: 32 }}>
-            <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginBottom: 4 }}>
-              {getGreeting()}, {user?.firstName || 'Student'}! 👋
-            </Text>
-            <Text style={{ fontSize: 16, color: '#6B7280' }}>
-              Ready to continue your UTME journey?
-            </Text>
-          </View>
-
-          {/* Progress Ring */}
-          <View style={{ alignItems: 'center', marginBottom: 32 }}>
-            <CircularProgress 
-              progress={calculateOverallProgress()}
-              size={120}
-              strokeWidth={8}
-              color="#3B82F6"
-              backgroundColor="#E5E7EB"
+    <View style={styles.container}>
+      <View style={styles.orbTop} />
+      <View style={styles.orbBottom} />
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.scrollView}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.primary}
+              accessibilityLabel="Refresh dashboard"
+              accessibilityRole="button"
             />
-            <Text style={{ 
-              position: 'absolute', 
-              top: '50%', 
-              fontSize: 24, 
-              fontWeight: 'bold', 
-              color: '#1F2937',
-              marginTop: -12
-            }}>
-              {calculateOverallProgress()}%
-            </Text>
-            <Text style={{ fontSize: 14, color: '#6B7280', marginTop: 16 }}>
-              Overall Progress
-            </Text>
-          </View>
-
-          {/* Quick Stats */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
-            <StatCard 
-              title="Current Score"
-              value={projectedScore().toString()}
-              subtitle={`Target: ${user?.goalScore || 300}`}
-              icon="🎯"
-              color="#3B82F6"
-              flex={1}
-            />
-            <StatCard 
-              title="Study Streak"
-              value={analytics?.overall?.currentStreak?.toString() || '0'}
-              subtitle="Days"
-              icon="🔥"
-              color="#EF4444"
-              flex={1}
-            />
-            <StatCard 
-              title="Questions Done"
-              value={analytics?.overall?.totalQuestions?.toString() || '0'}
-              subtitle={`${analytics?.overall?.correctAnswers || 0} correct`}
-              icon="📝"
-              color="#10B981"
-              flex={1}
-            />
-            <StatCard 
-              title="Time Spent"
-              value={`${Math.round((dailyStats?.reduce((sum, day) => sum + day.timeSpent, 0) || 0) / 3600)}h`}
-              subtitle="This month"
-              icon="⏰"
-              color="#8B5CF6"
-              flex={1}
-            />
-          </View>
-
-          {/* Daily Tasks */}
-          <View style={{ marginBottom: 24 }}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 16 }}>
-              Today's Tasks
-            </Text>
-            <View style={{ gap: 12 }}>
-              <TaskCard 
-                title="Daily Quiz"
-                description="Complete 10 mixed questions"
-                progress={0.6}
-                onPress={() => navigation.navigate('Practice', { screen: 'PracticeHome' })}
-                icon="⚡"
-                completed={false}
-              />
-              <TaskCard 
-                title="Review Weak Topics"
-                description={`Focus on ${weakTopics?.[0]?.topic || 'identified areas'}`}
-                progress={0.3}
-                onPress={() => navigation.navigate('WeakTopics')}
-                icon="📚"
-                completed={false}
-              />
-              <TaskCard 
-                title="Flashcards Review"
-                description="Review 15 flashcards"
-                progress={1.0}
-                onPress={() => navigation.navigate('Flashcards')}
-                icon="🗂️"
-                completed={true}
-              />
-            </View>
-          </View>
-
-          {/* Subject Performance */}
-          <View style={{ marginBottom: 24 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151' }}>
-                Subject Performance
+          }
+        >
+          <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+            {/* Header */}
+            <View style={[onboardingStyles.sectionContainer, styles.headerContainer]}>
+              <Text
+                style={[globalStyles.sectionHeader, styles.greetingText]}
+                accessibilityLabel={`${getGreeting()}, ${user?.firstName || 'Student'}`}
+              >
+                {getGreeting()}, {user?.firstName || 'Student'}! 👋
               </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Analytics')}>
-                <Text style={{ fontSize: 14, color: '#3B82F6', fontWeight: '500' }}>
-                  View All →
-                </Text>
-              </TouchableOpacity>
+              <Text style={globalStyles.text}>
+                Ready to continue your UTME journey?
+              </Text>
             </View>
-            
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row', gap: 16 }}>
-                {user?.selectedSubjects?.map((subject) => {
-                  const subjectData = analytics?.subjectPerformance?.find(
-                    (s: any) => s.subject.toLowerCase() === subject.toLowerCase()
-                  );
-                  const accuracy = subjectData 
-                    ? Math.round((subjectData.correct_answers / subjectData.total_questions) * 100)
-                    : 0;
-                  
-                  return (
-                    <SubjectCard
-                      key={subject}
-                      subject={subject}
-                      accuracy={accuracy}
-                      totalQuestions={subjectData?.total_questions || 0}
-                      onPress={() => navigation.navigate('SubjectDetail', { subject })}
-                    />
-                  );
-                })}
-              </View>
-            </ScrollView>
-          </View>
 
-          {/* Quick Actions */}
-          <View style={{ marginBottom: 32 }}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 16 }}>
-              Quick Actions
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <ActionButton 
-                title="Start Practice"
-                icon="🎮"
-                color="#3B82F6"
-                onPress={() => navigation.navigate('Practice')}
+            {/* Progress Ring */}
+            <View style={onboardingStyles.sectionContainer}>
+              <CircularProgress
+                progress={calculateOverallProgress()}
+                size={150}
+                strokeWidth={10}
+                color={COLORS.primary}
+                backgroundColor={COLORS.progressBackground}
+                accessibilityLabel={`Overall progress: ${calculateOverallProgress()}%`}
               />
-              <ActionButton 
-                title="Mock Exam"
-                icon="📋"
-                color="#8B5CF6"
-                onPress={() => navigation.navigate('MockExam')}
-              />
-              <ActionButton 
-                title="Study Plan"
-                icon="📅"
-                color="#10B981"
-                onPress={() => navigation.navigate('StudyPlan')}
-              />
+              <Text style={[globalStyles.text, styles.progressText]}>
+                Projected Score: {projectedScore()}
+              </Text>
             </View>
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+
+            {/* Daily Stats */}
+            <View style={onboardingStyles.sectionContainer}>
+              <Text style={[globalStyles.text, styles.sectionTitle]}>Daily Stats</Text>
+            <View style={styles.statsContainer}>
+              {dailyStats?.map((stat: any, index: number) => (
+                <StatCard
+                  key={index}
+                  title={stat.title}
+                  value={stat.value}
+                  subtitle={stat.subtitle || ''}   // make sure you provide a subtitle
+                  icon={stat.icon || '📊'}         // default icon if none provided
+                  color={COLORS.primary}
+                  unit={stat.unit}
+                  accessibilityLabel={`${stat.title}: ${stat.value} ${stat.unit || ''}`}
+                />
+              ))}
+            </View>
+            </View>
+
+            {/* Weak Topics */}
+            <View style={onboardingStyles.sectionContainer}>
+              <Text style={[globalStyles.text, styles.sectionTitle]}>Weak Topics to Review</Text>
+             {weakTopics?.map((topic: any, index: number) => (
+              <TaskCard
+                key={index}
+                title={topic.title}
+                description={topic.description || 'No description'}   // required
+                progress={topic.progress ?? 0}                         // required, default 0
+                icon={topic.icon || '📖'}                               // required
+                completed={topic.completed ?? false}                   // required
+                subject={topic.subject}
+                difficulty={topic.difficulty}
+                onPress={() => navigation.navigate('TopicDetail', { topic })}
+                accessibilityLabel={`Review ${topic.title} in ${topic.subject}`}
+              />
+            ))}
+            </View>
+
+            {/* Subject Performance */}
+            <View style={onboardingStyles.sectionContainer}>
+              <View style={styles.sectionHeader}>
+                <Text style={[globalStyles.text, styles.sectionTitle]}>Subject Performance</Text>
+                <Button
+                  title="View All"
+                  variant="text"
+                  size="small"
+                  onPress={() => navigation.navigate('Analytics')}
+                  accessibilityLabel="View all subject performance"
+                  accessibilityRole="button"
+                />
+              </View>
+            
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.subjectsContainer}>
+                  {user?.selectedSubjects?.map((subject: string) => {
+                    const subjectData = analytics?.subjectPerformance?.find(
+                      (s: any) => s.subject.toLowerCase() === subject.toLowerCase()
+                    );
+                    const accuracy = subjectData
+                      ? Math.round((subjectData.correct_answers / subjectData.total_questions) * 100)
+                      : 0;
+                    return (
+                      <SubjectCard
+                        key={subject}
+                        subject={subject}
+                        accuracy={accuracy}
+                        totalQuestions={subjectData?.total_questions || 0}
+                        onPress={() => navigation.navigate('SubjectDetail', { subject })}
+                        accessibilityLabel={`${subject}: ${accuracy}% accuracy`}
+                      />
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+
+            {/* Quick Actions */}
+            <View style={onboardingStyles.sectionContainer}>
+              <Text style={[globalStyles.text, styles.sectionTitle]}>Quick Actions</Text>
+              <View style={styles.actionsContainer}>
+                <ActionButton
+                  title="Start Practice"
+                  icon="🎮"
+                  color={COLORS.primary}
+                  onPress={() => navigation.navigate('Practice')}
+                  accessibilityLabel="Start practice session"
+                />
+                <ActionButton
+                  title="Mock Exam"
+                  icon="📋"
+                  color={COLORS.secondary}
+                  onPress={() => navigation.navigate('MockExam')}
+                  accessibilityLabel="Start mock exam"
+                />
+                <ActionButton
+                  title="Study Plan"
+                  icon="📅"
+                  color={COLORS.success}
+                  onPress={() => navigation.navigate('StudyPlan')}
+                  accessibilityLabel="View study plan"
+                />
+              </View>
+            </View>
+          </Animated.View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  orbTop: {
+    position: 'absolute',
+    top: LAYOUT.orbTopOffset,
+    right: -0.25 * LAYOUT.orbTopSize,
+    width: LAYOUT.orbTopSize,
+    height: LAYOUT.orbTopSize,
+    borderRadius: LAYOUT.orbTopSize / 2,
+    backgroundColor: COLORS.orbBlue,
+    transform: [{ rotate: '20deg' }],
+  },
+  orbBottom: {
+    position: 'absolute',
+    bottom: LAYOUT.orbBottomOffset,
+    left: -0.2 * LAYOUT.orbBottomSize,
+    width: LAYOUT.orbBottomSize,
+    height: LAYOUT.orbBottomSize,
+    borderRadius: LAYOUT.orbBottomSize / 2,
+    backgroundColor: COLORS.orbGold,
+    transform: [{ rotate: '-40deg' }],
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollView: {
+    flexGrow: 1,
+  },
+  content: {
+    flex: 1,
+    padding: LAYOUT.padding,
+  },
+  headerContainer: {
+    marginTop: LAYOUT.headerMarginTop,
+    marginBottom: 48,
+    alignItems: 'center',
+  },
+  iconContainer: {
+    marginBottom: 24,
+  },
+  icon: {
+    fontSize: SIZES.logo,
+    color: COLORS.primary,
+  },
+  greetingText: {
+    fontSize: SIZES.headerText,
+    fontWeight: '600',
+  },
+  progressText: {
+    textAlign: 'center',
+    marginTop: 16,
+    fontWeight: '600',
+  },
+  sectionTitle: {
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  chartContainer: {
+    height: 200,
+    marginBottom: 24,
+  },
+  subjectsContainer: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+});

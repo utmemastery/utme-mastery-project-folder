@@ -23,9 +23,16 @@ interface UserAnalytics {
   }>;
 }
 
+interface DailyStats {
+  streak: number;
+  time_spent: number;
+}
+
 interface WeakTopic {
-  topic: string;
+  id: number;
+  name: string;
   subject: string;
+  progress: number;
   total_questions: number;
   correct_answers: number;
   accuracy: number;
@@ -33,7 +40,7 @@ interface WeakTopic {
 
 interface AnalyticsState {
   analytics: UserAnalytics | null;
-  dailyStats: any[] | null;
+  dailyStats: DailyStats[] | null;
   weakTopics: WeakTopic[] | null;
   isLoading: boolean;
   error: string | null;

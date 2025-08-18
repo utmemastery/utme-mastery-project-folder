@@ -61,7 +61,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      const response = await api.get('/profile');
+      const response = await api.get('/user/profile');
       const profileData = {
         ...response.data.profile,
         phone: response.data.profile.phoneNumber,
@@ -109,7 +109,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
         avatarUrl: data.profileImage
       };
       
-      const response = await api.put('/profile', updateData);
+      const response = await api.put('/user/profile', updateData);
       const updatedProfile = {
         ...response.data.profile,
         phone: response.data.profile.phoneNumber,
@@ -145,7 +145,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
         name: 'profile.jpg',
       } as any);
       
-      const response = await api.post('/profile/image', formData, {
+      const response = await api.post('/user/profile/image', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -177,7 +177,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
 
   fetchProfileStats: async () => {
     try {
-      const response = await api.get('/analytics');
+      const response = await api.get('/user/analytics');
       set({ stats: response.data.stats });
       
     } catch (error: any) {
@@ -190,7 +190,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      const response = await api.put('/profile', { selectedSubjects: subjects });
+      const response = await api.put('/user/profile', { selectedSubjects: subjects });
       
       const currentProfile = get().profile;
       if (currentProfile) {
@@ -220,7 +220,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      await api.put('/goal', { goalScore: score });
+      await api.put('/user/goal', { goalScore: score });
       
       const currentProfile = get().profile;
       if (currentProfile) {
@@ -253,7 +253,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      const response = await api.put('/profile', preferences);
+      const response = await api.put('/user/profile', preferences);
       
       const currentProfile = get().profile;
       if (currentProfile) {
@@ -284,7 +284,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      await api.delete('/profile');
+      await api.delete('/user/profile');
       
       await AsyncStorage.multiRemove([
         'auth_token',
@@ -310,7 +310,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
 
   exportData: async () => {
     try {
-      const response = await api.get('/profile/export');
+      const response = await api.get('/user/profile/export');
       return response.data;
       
     } catch (error: any) {

@@ -1,7 +1,7 @@
-// mobile/src/components/ui/CircularProgress.tsx
 import React from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { COLORS } from '../../constants';
 
 interface CircularProgressProps {
   progress: number; // 0-100
@@ -9,6 +9,7 @@ interface CircularProgressProps {
   strokeWidth: number;
   color: string;
   backgroundColor: string;
+  accessibilityLabel?: string;
 }
 
 export const CircularProgress: React.FC<CircularProgressProps> = ({
@@ -16,30 +17,29 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   size,
   strokeWidth,
   color,
-  backgroundColor
+  backgroundColor,
+  accessibilityLabel,
 }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const offset = circumference - (progress / 100) * circumference;
 
   return (
-    <View style={{ width: size, height: size }}>
+    <View style={[styles.container, { width: size, height: size }]} accessibilityLabel={accessibilityLabel}>
       <Svg width={size} height={size}>
-        {/* Background circle */}
         <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={backgroundColor}
+          stroke={backgroundColor || COLORS.progressBackground}
           strokeWidth={strokeWidth}
           fill="none"
         />
-        {/* Progress circle */}
         <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={color}
+          stroke={color || COLORS.primary}
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={circumference}
@@ -51,3 +51,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {},
+});

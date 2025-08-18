@@ -1,27 +1,35 @@
 import React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, ScrollView, Animated, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../../components/ui/Button';
-import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../navigation/types';
+import { RootStackParamList, OnboardingStackParamList } from '../../navigation/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthStore } from '../../stores/authStore';
+import { AssessmentResultsHeader } from '../../components/onboarding/assessment-results/AssessmentResultsHeader';
+import { AssessmentResultsSummary } from '../../components/onboarding/assessment-results/AssessmentResultsSummary';
+import { AssessmentResultsSubjects } from '../../components/onboarding/assessment-results/AssessmentResultsSubjects';
+import { AssessmentResultsPlan } from '../../components/onboarding/assessment-results/AssessmentResultsPlan';
+import { AssessmentResultsFooter } from '../../components/onboarding/assessment-results/AssessmentResultsFooter';
+import { useScreenAnimation } from '../../hooks/useScreenAnimation';
+import { COLORS, LAYOUT } from '../../constants';
 
 interface AssessmentResultsScreenProps {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'AssessmentResults'>;
+  navigation: NativeStackNavigationProp<OnboardingStackParamList, 'AssessmentResults'>;
   route: {
     params: {
       subjectProficiency: Array<{ subject: string; proficiency: number }>;
       goalScore: number;
       aspiringCourse: string;
+      selectedSubjects: string[];
+      learningStyle: string;
     };
   };
 }
 
-export const AssessmentResultsScreen: React.FC<AssessmentResultsScreenProps> = ({ 
-  navigation, 
-  route 
-}) => {
-  const { subjectProficiency, goalScore, aspiringCourse } = route.params;
+export const AssessmentResultsScreen: React.FC<AssessmentResultsScreenProps> = ({ navigation, route }) => {
+  const { subjectProficiency, goalScore, aspiringCourse, selectedSubjects, learningStyle } = route.params;
+  const { fadeAnim, slideAnim } = useScreenAnimation();
+  const { updateProfile, setOnboardingDone } = useAuthStore();
 
   const getSubjectName = (subject: string) => {
     const names: Record<string, string> = {
@@ -30,147 +38,121 @@ export const AssessmentResultsScreen: React.FC<AssessmentResultsScreenProps> = (
       physics: 'Physics',
       chemistry: 'Chemistry',
       biology: 'Biology',
-      // Add more mappings
+      geography: 'Geography',
+      economics: 'Economics',
+      government: 'Government',
+      literature: 'Literature in English',
+      history: 'History',
+      crs: 'Christian Religious Studies',
+      irs: 'Islamic Religious Studies',
+      yoruba: 'Yoruba',
+      hausa: 'Hausa',
+      igbo: 'Igbo',
     };
-    return names[subject] || subject;
+    return names[subject] || subject.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
   };
 
   const getProficiencyLevel = (score: number) => {
-    if (score >= 80) return { level: 'Excellent', color: '#10B981' };
-    if (score >= 60) return { level: 'Good', color: '#3B82F6' };
-    if (score >= 40) return { level: 'Fair', color: '#F59E0B' };
-    return { level: 'Needs Work', color: '#EF4444' };
+    if (score >= 80) return { level: 'Excellent', color: COLORS.success };
+    if (score >= 60) return { level: 'Good', color: COLORS.primary };
+    if (score >= 40) return { level: 'Fair', color: COLORS.accent };
+    return { level: 'Needs Work', color: COLORS.error };
   };
 
   const averageProficiency = subjectProficiency.reduce((sum, item) => sum + item.proficiency, 0) / subjectProficiency.length;
-  const currentProjectedScore = Math.round(200 + (averageProficiency / 100) * 200);
+  const clampedAverage = Math.min(Math.max(averageProficiency, 0), 100);
+  const currentProjectedScore = Math.round(200 + (clampedAverage / 100) * 200);
 
-  const handleStartLearning = () => {
-    console.log('Navigating to MainTabs');
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'MainTabs' }]
-    });
+  const handleStartLearning = async () => {
+    try {
+      // Update profile with assessment results
+      await updateProfile({
+        selectedSubjects,
+        aspiringCourse,
+        goalScore,
+        learningStyle,
+        diagnosticResults: subjectProficiency.map(s => ({
+          subject: s.subject,
+          proficiency: s.proficiency,
+        })),
+        onboardingDone: true,
+      });
+
+      // Save to AsyncStorage
+      await AsyncStorage.setItem(
+        'onboardingProgress',
+        JSON.stringify({ selectedSubjects, aspiringCourse, goalScore, learningStyle, done: true })
+      );
+
+      // Update onboarding status
+      await setOnboardingDone(true);
+
+    } catch (error) {
+      console.log('Error updating profile:', error);
+      Alert.alert('Error', 'Failed to save assessment results. Please try again.');
+    }
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-      <ScrollView style={{ flex: 1 }}>
-        <View style={{ padding: 24 }}>
-          {/* Header */}
-          <View style={{ alignItems: 'center', marginBottom: 32 }}>
-            <Text style={{ fontSize: 48, marginBottom: 16 }}>📊</Text>
-            <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
-              Your Assessment Results
-            </Text>
-            <Text style={{ fontSize: 16, color: '#6B7280', textAlign: 'center' }}>
-              Based on your performance, here's your current standing
-            </Text>
-          </View>
-
-          {/* Overall Score */}
-          <View style={{ 
-            backgroundColor: '#F3F4F6', 
-            padding: 20, 
-            borderRadius: 16, 
-            marginBottom: 24,
-            alignItems: 'center'
-          }}>
-            <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 8 }}>
-              Current Projected UTME Score
-            </Text>
-            <Text style={{ fontSize: 48, fontWeight: 'bold', color: '#3B82F6', marginBottom: 8 }}>
-              {currentProjectedScore}
-            </Text>
-            <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
-              Target: {goalScore} for {aspiringCourse}
-            </Text>
-            
-            {currentProjectedScore < goalScore && (
-              <View style={{ marginTop: 16 }}>
-                <Text style={{ fontSize: 14, color: '#EF4444', textAlign: 'center' }}>
-                  You're {goalScore - currentProjectedScore} points away from your goal. Let's work together to reach it!
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Subject Breakdown */}
-          <View style={{ marginBottom: 32 }}>
-            <Text style={{ fontSize: 20, fontWeight: '600', color: '#1F2937', marginBottom: 16 }}>
-              Subject Performance
-            </Text>
-            
-            {subjectProficiency.map((item) => {
-              const { level, color } = getProficiencyLevel(item.proficiency);
-              
-              return (
-                <View key={item.subject} style={{ 
-                  backgroundColor: 'white',
-                  borderWidth: 1,
-                  borderColor: '#E5E7EB',
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 12
-                }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937' }}>
-                      {getSubjectName(item.subject)}
-                    </Text>
-                    <Text style={{ fontSize: 14, color, fontWeight: '600' }}>
-                      {level}
-                    </Text>
-                  </View>
-                  
-                  {/* Progress Bar */}
-                  <View style={{ 
-                    height: 8, 
-                    backgroundColor: '#E5E7EB', 
-                    borderRadius: 4, 
-                    overflow: 'hidden',
-                    marginBottom: 8
-                  }}>
-                    <View style={{ 
-                      height: '100%', 
-                      backgroundColor: color,
-                      width: `${item.proficiency}%`
-                    }} />
-                  </View>
-                  
-                  <Text style={{ fontSize: 12, color: '#6B7280' }}>
-                    {Math.round(item.proficiency)}% proficiency
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-
-          {/* Next Steps */}
-          <View style={{ 
-            backgroundColor: '#F0F9FF', 
-            padding: 20, 
-            borderRadius: 16, 
-            marginBottom: 24 
-          }}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#1E40AF', marginBottom: 12 }}>
-              🚀 Your Personalized Plan
-            </Text>
-            <Text style={{ fontSize: 14, color: '#1E40AF', lineHeight: 20 }}>
-              We've created a custom study plan focusing on your weak areas while maintaining your strengths. 
-              Your AI tutor will adapt the difficulty as you improve!
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Continue Button */}
-      <View style={{ padding: 24 }}>
-        <Button
-          title="Start My Learning Journey"
-          onPress={handleStartLearning}
-          size="large"
-        />
-      </View>
-    </SafeAreaView>
+    <View style={styles.container}>
+      <View style={styles.orbTop} />
+      <View style={styles.orbBottom} />
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView contentContainerStyle={styles.scrollView}>
+          <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+            <AssessmentResultsHeader />
+            <AssessmentResultsSummary
+              currentProjectedScore={currentProjectedScore}
+              goalScore={goalScore}
+              aspiringCourse={aspiringCourse}
+            />
+            <AssessmentResultsSubjects
+              subjectProficiency={subjectProficiency}
+              getSubjectName={getSubjectName}
+              getProficiencyLevel={getProficiencyLevel}
+            />
+            <AssessmentResultsPlan />
+            <AssessmentResultsFooter handleStartLearning={handleStartLearning} />
+          </Animated.View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  orbTop: {
+    position: 'absolute',
+    top: LAYOUT.orbTopOffset,
+    right: -0.25 * LAYOUT.orbTopSize,
+    width: LAYOUT.orbTopSize,
+    height: LAYOUT.orbTopSize,
+    borderRadius: LAYOUT.orbTopSize / 2,
+    backgroundColor: COLORS.orbBlue,
+    transform: [{ rotate: '20deg' }],
+  },
+  orbBottom: {
+    position: 'absolute',
+    bottom: LAYOUT.orbBottomOffset,
+    left: -0.2 * LAYOUT.orbBottomSize,
+    width: LAYOUT.orbBottomSize,
+    height: LAYOUT.orbBottomSize,
+    borderRadius: LAYOUT.orbBottomSize / 2,
+    backgroundColor: COLORS.orbGold,
+    transform: [{ rotate: '-40deg' }],
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollView: {
+    flexGrow: 1,
+  },
+  content: {
+    flex: 1,
+    padding: LAYOUT.padding,
+  },
+});

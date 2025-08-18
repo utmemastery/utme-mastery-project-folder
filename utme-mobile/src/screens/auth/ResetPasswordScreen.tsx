@@ -1,110 +1,93 @@
-import React, { useState } from 'react';
-import { View, Text, Alert, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, ScrollView, KeyboardAvoidingView, Platform, Animated, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuthStore } from '../../stores/authStore';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { StackScreenProps } from '@react-navigation/stack';
 import { AuthStackParamList } from '../../navigation/types';
+import { useAuthStore } from '../../stores/authStore';
+import { ResetPasswordHeader } from '../../components/reset-password/ResetPasswordHeader';
+import { ResetPasswordForm } from '../../components/reset-password/ResetPasswordForm';
+import { PasswordRequirements } from '../../components/reset-password/PasswordRequirements';
+import { ResetPasswordFooter } from '../../components/reset-password/ResetPasswordFooter';
+import { useScreenAnimation } from '../../hooks/useScreenAnimation';
+import { COLORS, LAYOUT } from '../../constants';
 
 type ResetPasswordScreenProps = StackScreenProps<AuthStackParamList, 'ResetPassword'>;
 
 export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, route }) => {
   const { token } = route.params;
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const { fadeAnim, slideAnim } = useScreenAnimation();
+  const { isAuthenticated, user } = useAuthStore();
 
-  const { resetPassword, isLoading, error, clearError } = useAuthStore();
-
-  const validateForm = () => {
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
-    if (!password) {
-      setPasswordError('Password is required');
-      return false;
+  useEffect(() => {
+    if (isAuthenticated && user?.emailVerified) {
+      if (user.onboardingDone) {
+        navigation.replace('MainTabs');
+      } else {
+        navigation.replace('Onboarding');
+      }
     }
-    if (password.length < 8) {
-      setPasswordError('Password must be at least 8 characters');
-      return false;
-    }
-    if (!passwordRegex.test(password)) {
-      setPasswordError('Password must contain uppercase, lowercase, and number');
-      return false;
-    }
-    if (password !== confirmPassword) {
-      setPasswordError('Passwords do not match');
-      return false;
-    }
-    setPasswordError('');
-    return true;
-  };
-
-  const handleResetPassword = async () => {
-    if (!validateForm()) return;
-    clearError();
-    try {
-      await resetPassword(token, password);
-      Alert.alert('Success', 'Password reset successfully', [
-        { text: 'OK', onPress: () => navigation.navigate('Login') },
-      ]);
-    } catch (error) {
-      // Error handled by store
-    }
-  };
+  }, [isAuthenticated, user, navigation]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-      <View style={{ flex: 1, padding: 24, justifyContent: 'center' }}>
-        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
-          Reset Password
-        </Text>
-        <Input
-          label="New Password"
-          placeholder="Enter new password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={!showPassword}
-          error={passwordError}
-          rightIcon={
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <Text style={{ color: '#3B82F6' }}>{showPassword ? 'Hide' : 'Show'}</Text>
-            </TouchableOpacity>
-          }
-        />
-        <Input
-          label="Confirm Password"
-          placeholder="Re-enter new password"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry={!showPassword}
-          error={passwordError}
-          rightIcon={
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <Text style={{ color: '#3B82F6' }}>{showPassword ? 'Hide' : 'Show'}</Text>
-            </TouchableOpacity>
-          }
-        />
-        {error && (
-          <Text style={{ color: '#EF4444', fontSize: 14, marginBottom: 16, textAlign: 'center' }}>
-            {error}
-          </Text>
-        )}
-        <Button
-          title="Reset Password"
-          onPress={handleResetPassword}
-          loading={isLoading}
-          style={{ marginBottom: 16 }}
-        />
-        <TouchableOpacity 
-          onPress={() => navigation.navigate('Login')}
-          style={{ alignItems: 'center', marginTop: 16 }}
+    <View style={styles.container}>
+      <View style={styles.orbTop} />
+      <View style={styles.orbBottom} />
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoiding}
         >
-          <Text style={{ color: '#6B7280', fontSize: 14 }}>
-            ← Back to Sign In
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+          <ScrollView contentContainerStyle={styles.scrollView}>
+            <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+              <ResetPasswordHeader />
+              <ResetPasswordForm navigation={navigation} token={token} />
+              <PasswordRequirements />
+              <ResetPasswordFooter navigation={navigation} />
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: { 
+    flex: 1, 
+    backgroundColor: COLORS.background 
+  },
+  orbTop: {
+    position: 'absolute',
+    top: LAYOUT.orbTopOffset,
+    left: -0.2 * LAYOUT.orbTopSize,
+    width: LAYOUT.orbTopSize,
+    height: LAYOUT.orbTopSize,
+    borderRadius: LAYOUT.orbTopSize / 2,
+    backgroundColor: COLORS.orbBlue,
+    transform: [{ rotate: '30deg' }],
+  },
+  orbBottom: {
+    position: 'absolute',
+    bottom: LAYOUT.orbBottomOffset,
+    right: -0.25 * LAYOUT.orbBottomSize,
+    width: LAYOUT.orbBottomSize,
+    height: LAYOUT.orbBottomSize,
+    borderRadius: LAYOUT.orbBottomSize / 2,
+    backgroundColor: COLORS.orbGold,
+    transform: [{ rotate: '-25deg' }],
+  },
+  safeArea: { 
+    flex: 1 
+  },
+  keyboardAvoiding: { 
+    flex: 1 
+  },
+  scrollView: { 
+    flexGrow: 1 
+  },
+  content: { 
+    flex: 1, 
+    padding: 24,
+    justifyContent: 'center' 
+  },
+});

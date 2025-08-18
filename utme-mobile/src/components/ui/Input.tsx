@@ -1,130 +1,112 @@
-// mobile/src/components/ui/Input.tsx
 import React, { useState } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
+  StyleProp,
   ViewStyle,
   TextStyle,
-  StyleProp,
+  StyleSheet,
+  TextInputProps,
 } from 'react-native';
+import { globalStyles } from '../../styles/global';
+import { COLORS } from '../../constants';
 
-interface InputProps {
+interface CustomInputProps {
   label?: string;
-  placeholder?: string;
-  value: string;
-  onChangeText: (text: string) => void;
-  secureTextEntry?: boolean;
-  keyboardType?: 'default' | 'numeric' | 'email-address' | 'phone-pad';
-  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   error?: string;
   disabled?: boolean;
-  multiline?: boolean;
-  numberOfLines?: number;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   onRightIconPress?: () => void;
   style?: StyleProp<ViewStyle>;
   inputStyle?: StyleProp<TextStyle>;
+  labelStyle?: StyleProp<TextStyle>;
 }
+
+export type InputProps = TextInputProps & CustomInputProps;
 
 export const Input: React.FC<InputProps> = ({
   label,
-  placeholder,
-  value,
-  onChangeText,
-  secureTextEntry = false,
-  keyboardType = 'default',
-  autoCapitalize = 'sentences',
   error,
   disabled = false,
-  multiline = false,
-  numberOfLines = 1,
   leftIcon,
   rightIcon,
   onRightIconPress,
   style,
   inputStyle,
+  labelStyle,
+  ...rest // includes value, onChangeText, placeholder, keyboardType, accessibilityLabel, etc.
 }) => {
   const [isFocused, setIsFocused] = useState(false);
 
   return (
-    <View style={[{ marginBottom: 16 }, style]}>
-      {label && (
-        <Text
-          style={{
-            fontSize: 14,
-            fontWeight: '500',
-            color: '#374151',
-            marginBottom: 8,
-          }}
-        >
-          {label}
-        </Text>
-      )}
-
+    <View style={[globalStyles.input, style]}>
+      {label && <Text style={[globalStyles.label, labelStyle]}>{label}</Text>}
       <View
-        style={{
-          flexDirection: 'row',
-          alignItems: multiline ? 'flex-start' : 'center',
-          backgroundColor: disabled ? '#F3F4F6' : 'white',
-          borderWidth: 1,
-          borderColor: error ? '#EF4444' : isFocused ? '#3B82F6' : '#D1D5DB',
-          borderRadius: 8,
-          paddingHorizontal: 12,
-          paddingVertical: multiline ? 12 : 0,
-          minHeight: multiline ? numberOfLines * 20 + 24 : 48,
-        }}
+        style={[
+          styles.inputContainer,
+          {
+            backgroundColor: disabled ? COLORS.disabled : COLORS.white,
+            borderColor: error
+              ? COLORS.error
+              : isFocused
+              ? COLORS.primary
+              : COLORS.textTertiary,
+            minHeight: rest.multiline
+              ? (rest.numberOfLines || 1) * 20 + 24
+              : 48,
+          },
+        ]}
       >
-        {leftIcon && <View style={{ marginRight: 8 }}>{leftIcon}</View>}
-
+        {leftIcon && <View style={styles.icon}>{leftIcon}</View>}
         <TextInput
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor="#9CA3AF"
-          secureTextEntry={secureTextEntry}
-          keyboardType={keyboardType}
-          autoCapitalize={autoCapitalize}
+          {...rest}
           editable={!disabled}
-          multiline={multiline}
-          numberOfLines={numberOfLines}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          style={[
-            {
-              flex: 1,
-              fontSize: 16,
-              color: '#1F2937',
-              paddingVertical: multiline ? 0 : 12,
-            },
-            inputStyle,
-          ]}
+          onFocus={(e) => {
+            setIsFocused(true);
+            rest.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            rest.onBlur?.(e);
+          }}
+          style={[globalStyles.inputText, styles.inputText, inputStyle]}
         />
-
         {rightIcon && (
           <TouchableOpacity
             onPress={onRightIconPress}
-            style={{ marginLeft: 8 }}
+            style={styles.icon}
             disabled={!onRightIconPress}
+            accessibilityLabel={
+              onRightIconPress ? 'Toggle input action' : undefined
+            }
+            accessibilityRole={onRightIconPress ? 'button' : undefined}
           >
             {rightIcon}
           </TouchableOpacity>
         )}
       </View>
-
-      {error && (
-        <Text
-          style={{
-            fontSize: 12,
-            color: '#EF4444',
-            marginTop: 4,
-          }}
-        >
-          {error}
-        </Text>
-      )}
+      {error && <Text style={globalStyles.errorText}>{error}</Text>}
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 0,
+  },
+  inputText: {
+    flex: 1,
+    paddingVertical: 12,
+  },
+  icon: {
+    marginHorizontal: 8,
+  },
+});

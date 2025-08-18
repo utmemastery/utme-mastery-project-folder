@@ -24,17 +24,24 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ===== CORS CONFIG =====
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? ['https://your-domain.com']
-  : ['http://192.168.78.67:3000', 'http://192.168.78.67:8081'];
+const allowedOrigins = ['https://your-domain.com']; // production origins
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true); // Allow Postman, curl, etc.
+    // ✅ Allow everything in development
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+
+    // ✅ In production, restrict origins
+    if (!origin) return callback(null, true); // allow tools like Postman
 
     const normalizedOrigin = origin.trim().replace(/\/$/, '').toLowerCase();
 
-    if (allowedOrigins.some(o => o.toLowerCase() === normalizedOrigin) || normalizedOrigin.endsWith('.vercel.app')) {
+    if (
+      allowedOrigins.some(o => o.toLowerCase() === normalizedOrigin) ||
+      normalizedOrigin.endsWith('.vercel.app')
+    ) {
       return callback(null, true);
     }
 
@@ -42,18 +49,19 @@ const corsOptions: CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-guest-id'], // add more if needed
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-guest-id'],
 };
 
 // Apply CORS
 app.use(cors(corsOptions));
 
-// Optional: preflight handling
-//app.options(/.*/, cors(corsOptions));
-
 // ===== HEALTH CHECK =====
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString(), environment: process.env.NODE_ENV });
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+  });
 });
 
 // ===== ROUTES =====
@@ -72,10 +80,11 @@ app.use((req, res) => {
 // Error handler
 app.use((err: any, req: any, res: any, next: any) => {
   console.error('Error:', err);
-  res.status(500).json({ 
-    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message 
+  res.status(500).json({
+    error: process.env.NODE_ENV === 'production'
+      ? 'Internal server error'
+      : err.message,
   });
 });
-
 
 export default app;
