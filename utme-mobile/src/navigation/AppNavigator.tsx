@@ -1,59 +1,49 @@
 // AppNavigator.tsx
-import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
-import { onboardingNavigationRef } from './navigationRef';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuthStore } from '../stores/authStore';
-import { MainTabNavigator } from './MainTabNavigator';
-import { OnboardingNavigator } from './OnboardingNavigator';
-import { AuthNavigator } from './AuthNavigator';
-import { LoadingScreen } from '../screens/LoadingScreen';
+import React, { useEffect, useState } from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import { onboardingNavigationRef } from "./navigationRef";
+import { useAuthStore } from "../stores/authStore";
+import { MainTabNavigator } from "./MainTabNavigator";
+import { OnboardingNavigator } from "./OnboardingNavigator";
+import { AuthNavigator } from "./AuthNavigator";
+import { LoadingScreen } from "../screens/LoadingScreen";
 
 const Stack = createStackNavigator();
 
 export const AppNavigator = () => {
   const { user, isAuthenticated, isLoading, initializeAuth } = useAuthStore();
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [hasInitAttempted, setHasInitAttempted] = useState(false);
 
   useEffect(() => {
     const initializeApp = async () => {
-      await initializeAuth();
-      setIsInitializing(false);
+      try {
+        await initializeAuth();
+      } catch (err) {
+        console.error("Auth initialization failed:", err);
+      } finally {
+        setHasInitAttempted(true);
+      }
     };
-
     initializeApp();
   }, []);
 
-  useEffect(() => {
-    console.log('AppNavigator state:', {
-      isAuthenticated,
-      isLoading,
-      isInitializing,
-      onboardingDone: user?.onboardingDone,
-      user: user ? { ...user, diagnosticResults: user.diagnosticResults?.length } : null,
-    });
-  }, [isAuthenticated, isLoading, isInitializing, user]);
-
-  if (isInitializing || isLoading) {
+  if (!hasInitAttempted || isLoading) {
     return <LoadingScreen />;
   }
 
   return (
-    <NavigationContainer
-      ref={onboardingNavigationRef}
-      onStateChange={(state) => {
-        console.log('Navigation state changed:', JSON.stringify(state, null, 2));
-      }}
-    >
+    <NavigationContainer ref={onboardingNavigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <Stack.Screen name="Auth" component={AuthNavigator} />
-        ) : (
+        ) : user ? (
           <Stack.Screen
-            name={user?.onboardingDone ? 'MainTabs' : 'Onboarding'}
-            component={user?.onboardingDone ? MainTabNavigator : OnboardingNavigator}
+            name={user.onboardingDone ? "MainTabs" : "Onboarding"}
+            component={user.onboardingDone ? MainTabNavigator : OnboardingNavigator}
           />
+        ) : (
+          <Stack.Screen name="Loading" component={LoadingScreen} />
         )}
       </Stack.Navigator>
     </NavigationContainer>

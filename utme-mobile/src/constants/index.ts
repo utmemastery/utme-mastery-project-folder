@@ -3,8 +3,8 @@ import { Dimensions } from 'react-native';
 export const COLORS = {
   primary: '#163172', // Dark indigo
   secondary: '#667eea', // Lighter indigo
-  primaryLight: '#E0E7FF', // Added: Light variant of primary for selected cards
-  accent: '#F59E0B', // Added: Matches warning for backward compatibility
+  primaryLight: '#E0E7FF', // Light variant of primary for selected cards
+  accent: '#F59E0B', // Matches warning for backward compatibility
   background: '#d5dade', // Dark navy
   backgroundSecondary: '#0F0F23', // Light gray for alternate backgrounds
   orbBlue: 'rgba(59, 130, 246, 0.12)',
@@ -23,6 +23,8 @@ export const COLORS = {
   warning: '#F59E0B',
   disabled: '#D1D5DB',
   progressBackground: '#E5E7EB',
+  badgeBackground: 'rgba(255, 255, 255, 0.2)', // Added: For badge overlays
+  lockedBackground: 'rgba(209, 213, 219, 0.3)', // Added: For locked topic states
 };
 
 export const SIZES = {
@@ -43,6 +45,9 @@ export const SIZES = {
   borderRadius: 12,
   inputHeight: 48,
   smallBorderRadius: 8,
+  topicMapNodeLarge: 120, // Added: For section nodes in topic map
+  topicMapNodeSmall: 100, // Added: For topic nodes in topic map
+  topicMapConnector: 2, // Added: For topic map connector lines
 };
 
 export const ANIMATIONS = {
@@ -58,6 +63,7 @@ export const LAYOUT = {
   orbBottomSize: Dimensions.get('window').width * 0.4,
   orbTopOffset: Dimensions.get('window').height * 0.15,
   orbBottomOffset: Dimensions.get('window').height * 0.1,
+  sidePanelWidth: 250, // Added: For swipeable side panel
   cardShadow: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

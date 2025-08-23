@@ -48,10 +48,7 @@ export class UserController {
           createdAt: true,
           preferredStudyTime: true,
           studyReminders: true,
-          examYear: true,
-          dateOfBirth: true,
-          state: true,
-          school: true
+          examYear: true
         }
       });
 
@@ -200,9 +197,6 @@ static async updateProfile(req: AuthRequest, res: Response) {
         preferredStudyTime: true,
         studyReminders: true,
         examYear: true,
-        dateOfBirth: true,
-        state: true,
-        school: true,
         diagnosticResults: true,
       },
     });

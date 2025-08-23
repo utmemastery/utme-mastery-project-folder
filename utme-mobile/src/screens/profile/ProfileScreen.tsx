@@ -7,12 +7,16 @@ import {
   Image,
   Alert,
   Switch,
-  RefreshControl
+  RefreshControl,
+  StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useAuthStore } from '../../stores/authStore';
 import { useProfileStore } from '../../stores/profileStore';
+import { globalStyles } from '../../styles/global';
+import { COLORS, LAYOUT, SIZES } from '../../constants';
+import { Button } from '../../components/ui/Button';
 
 interface ProfileScreenProps {
   navigation: any;
@@ -137,55 +141,43 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
+                <View style={styles.container}>
+                  <View style={styles.orbTop} />
+                  <View style={styles.orbBottom} />
+                  <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={{ flex: 1 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
-        <View style={{ padding: 24 }}>
+        <View style={{ padding: LAYOUT.padding }}>
           <View style={{ marginBottom: 32 }}>
-            <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
+            <Text style={[globalStyles.sectionHeader, { marginBottom: 8 }]}>
               Profile
             </Text>
-            <Text style={{ fontSize: 16, color: '#6B7280' }}>
+            <Text style={globalStyles.text}>
               Manage your account and preferences
             </Text>
           </View>
 
           {error && (
-            <View style={{ 
-              backgroundColor: '#FEE2E2', 
-              padding: 16, 
-              borderRadius: 8, 
-              marginBottom: 24 
-            }}>
-              <Text style={{ color: '#DC2626' }}>{error}</Text>
+            <View style={[globalStyles.errorContainer, { marginBottom: 24 }]}>
+              <Text style={globalStyles.errorText}>{error}</Text>
               <TouchableOpacity onPress={clearError}>
-                <Text style={{ color: '#3B82F6', marginTop: 8 }}>Dismiss</Text>
+                <Text style={[globalStyles.text, { color: COLORS.primary, marginTop: 8 }]}>Dismiss</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          <View style={{
-            backgroundColor: 'white',
-            borderRadius: 16,
-            padding: 24,
-            marginBottom: 24,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 3,
-            elevation: 2
-          }}>
+          <View style={[globalStyles.cardContainer, { marginBottom: 24 }]}>
             <View style={{ alignItems: 'center', marginBottom: 20 }}>
               <TouchableOpacity onPress={handleImagePicker} style={{ position: 'relative' }}>
                 <View style={{
                   width: 100,
                   height: 100,
                   borderRadius: 50,
-                  backgroundColor: '#3B82F6',
+                  backgroundColor: COLORS.primary,
                   justifyContent: 'center',
                   alignItems: 'center',
                   overflow: 'hidden'
@@ -196,7 +188,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                       style={{ width: '100%', height: '100%' }}
                     />
                   ) : (
-                    <Text style={{ fontSize: 36, color: 'white', fontWeight: 'bold' }}>
+                    <Text style={{ fontSize: 36, color: COLORS.white, fontWeight: 'bold' }}>
                       {profile?.firstName?.charAt(0) || 'U'}
                     </Text>
                   )}
@@ -208,64 +200,64 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   width: 32,
                   height: 32,
                   borderRadius: 16,
-                  backgroundColor: '#10B981',
+                  backgroundColor: COLORS.success,
                   justifyContent: 'center',
                   alignItems: 'center'
                 }}>
-                  <Text style={{ color: 'white', fontSize: 16 }}>📷</Text>
+                  <Text style={{ color: COLORS.white, fontSize: 16 }}>📷</Text>
                 </View>
               </TouchableOpacity>
               
-              <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginTop: 12 }}>
+              <Text style={[globalStyles.sectionHeader, { marginTop: 12, fontSize: SIZES.xLargeText }]}>
                 {profile?.firstName || ''} {profile?.lastName || ''}
               </Text>
-              <Text style={{ fontSize: 16, color: '#6B7280' }}>
+              <Text style={globalStyles.text}>
                 {profile?.email || ''}
               </Text>
               {profile?.phone && (
-                <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 4 }}>
+                <Text style={[globalStyles.text, { marginTop: 4 }]}>
                   {profile.phone}
                 </Text>
               )}
               {profile?.dateOfBirth && (
-                <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 4 }}>
+                <Text style={[globalStyles.text, { marginTop: 4 }]}>
                   DOB: {new Date(profile.dateOfBirth).toLocaleDateString()}
                 </Text>
               )}
               {profile?.state && (
-                <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 4 }}>
+                <Text style={[globalStyles.text, { marginTop: 4 }]}>
                   State: {profile.state}
                 </Text>
               )}
               {profile?.school && (
-                <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 4 }}>
+                <Text style={[globalStyles.text, { marginTop: 4 }]}>
                   School: {profile.school}
                 </Text>
               )}
             </View>
 
             <View style={{ marginBottom: 20 }}>
-              <Text style={{ fontSize: 18, fontWeight: '600', color: '#1F2937', marginBottom: 8 }}>
+              <Text style={[globalStyles.sectionHeader, { fontSize: SIZES.mediumText, marginBottom: 8 }]}>
                 Study Preferences
               </Text>
               {profile?.preferredStudyTime && (
-                <Text style={{ fontSize: 16, color: '#6B7280', marginBottom: 8 }}>
+                <Text style={[globalStyles.text, { marginBottom: 8 }]}>
                   Preferred Study Time: {new Date(profile.preferredStudyTime).toLocaleTimeString()}
                 </Text>
               )}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 16, color: '#6B7280' }}>
+                <Text style={globalStyles.text}>
                   Study Reminders
                 </Text>
                 <Switch
                   value={studyRemindersEnabled}
                   onValueChange={toggleStudyReminders}
-                  trackColor={{ false: '#D1D5DB', true: '#3B82F6' }}
-                  thumbColor={studyRemindersEnabled ? '#ffffff' : '#f4f3f4'}
+                  trackColor={{ false: COLORS.disabled, true: COLORS.primary }}
+                  thumbColor={studyRemindersEnabled ? COLORS.white : '#f4f3f4'}
                 />
               </View>
               {profile?.examYear && (
-                <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 8 }}>
+                <Text style={[globalStyles.text, { marginTop: 8 }]}>
                   Exam Year: {profile.examYear}
                 </Text>
               )}
@@ -273,40 +265,40 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
             {stats && (
               <View style={{ marginBottom: 20 }}>
-                <Text style={{ fontSize: 18, fontWeight: '600', color: '#1F2937', marginBottom: 8 }}>
+                <Text style={[globalStyles.sectionHeader, { fontSize: SIZES.mediumText, marginBottom: 8 }]}>
                   Statistics
                 </Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Total Questions</Text>
-                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.totalQuestions}</Text>
+                  <Text style={globalStyles.text}>Total Questions</Text>
+                  <Text style={[globalStyles.text, { color: COLORS.textPrimary }]}>{stats.totalQuestions}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Correct Answers</Text>
-                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.correctAnswers}</Text>
+                  <Text style={globalStyles.text}>Correct Answers</Text>
+                  <Text style={[globalStyles.text, { color: COLORS.textPrimary }]}>{stats.correctAnswers}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Study Streak</Text>
-                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.studyStreak} days</Text>
+                  <Text style={globalStyles.text}>Study Streak</Text>
+                  <Text style={[globalStyles.text, { color: COLORS.textPrimary }]}>{stats.studyStreak} days</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Total Study Time</Text>
-                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.totalStudyTime} mins</Text>
+                  <Text style={globalStyles.text}>Total Study Time</Text>
+                  <Text style={[globalStyles.text, { color: COLORS.textPrimary }]}>{stats.totalStudyTime} mins</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Average Score</Text>
-                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.averageScore}%</Text>
+                  <Text style={globalStyles.text}>Average Score</Text>
+                  <Text style={[globalStyles.text, { color: COLORS.textPrimary }]}>{stats.averageScore}%</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Strongest Subject</Text>
-                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.strongestSubject || 'N/A'}</Text>
+                  <Text style={globalStyles.text}>Strongest Subject</Text>
+                  <Text style={[globalStyles.text, { color: COLORS.textPrimary }]}>{stats.strongestSubject || 'N/A'}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Weakest Subject</Text>
-                  <Text style={{ fontSize: 16, color: '#1F2937' }}>{stats.weakestSubject || 'N/A'}</Text>
+                  <Text style={globalStyles.text}>Weakest Subject</Text>
+                  <Text style={[globalStyles.text, { color: COLORS.textPrimary }]}>{stats.weakestSubject || 'N/A'}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 16, color: '#6B7280' }}>Last Active</Text>
-                  <Text style={{ fontSize: 16, color: '#1F2937' }}>
+                  <Text style={globalStyles.text}>Last Active</Text>
+                  <Text style={[globalStyles.text, { color: COLORS.textPrimary }]}>
                     {stats.lastActiveDate ? new Date(stats.lastActiveDate).toLocaleDateString() : 'N/A'}
                   </Text>
                 </View>
@@ -314,66 +306,85 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             )}
           </View>
 
-          <TouchableOpacity
-            style={{
-              backgroundColor: '#3B82F6',
-              padding: 16,
-              borderRadius: 8,
-              alignItems: 'center',
-              marginBottom: 16
-            }}
+          <Button
+            title="Edit Profile"
+            size='large'
             onPress={() => navigation.navigate('EditProfile')}
-          >
-            <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>
-              Edit Profile
-            </Text>
-          </TouchableOpacity>
+            style={{ marginBottom: 16, justifyContent: 'center', alignItems: 'center' }}
+          />
 
-          <TouchableOpacity
-            style={{
-              backgroundColor: '#10B981',
-              padding: 16,
-              borderRadius: 8,
-              alignItems: 'center',
-              marginBottom: 16
-            }}
+          <Button
+            title="Export My Data"
+            size='large'
             onPress={handleExportData}
-          >
-            <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>
-              Export My Data
-            </Text>
-          </TouchableOpacity>
+            style={{ marginBottom: 16, justifyContent: 'center', alignItems: 'center' }}
+            variant="primary"
+            leftIcon="📤"
+          />
 
-          <TouchableOpacity
-            style={{
-              backgroundColor: '#EF4444',
-              padding: 16,
-              borderRadius: 8,
-              alignItems: 'center',
-              marginBottom: 16
-            }}
+          <Button
+            title="Delete Account"
+            size='large'
             onPress={handleDeleteAccount}
-          >
-            <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>
-              Delete Account
-            </Text>
-          </TouchableOpacity>
+            style={{ marginBottom: 16, backgroundColor: COLORS.error, justifyContent: 'center', alignItems: 'center'  }}
+            variant="primary"
+            leftIcon="🗑️"
+          />
 
-          <TouchableOpacity
-            style={{
-              backgroundColor: '#6B7280',
-              padding: 16,
-              borderRadius: 8,
-              alignItems: 'center'
-            }}
+          <Button
+            title="Logout"
+            size='large'
             onPress={handleLogout}
-          >
-            <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>
-              Logout
-            </Text>
-          </TouchableOpacity>
+            style={{ backgroundColor: COLORS.textSecondary, justifyContent: 'center', alignItems: 'center'  }}
+            variant="primary"
+            leftIcon="🚪"
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
+    </View>
   );
 };
+
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  orbTop: {
+    position: 'absolute',
+    top: LAYOUT.orbTopOffset,
+    right: -0.25 * LAYOUT.orbTopSize,
+    width: LAYOUT.orbTopSize,
+    height: LAYOUT.orbTopSize,
+    borderRadius: LAYOUT.orbTopSize / 2,
+    backgroundColor: COLORS.orbBlue,
+    transform: [{ rotate: '20deg' }],
+  },
+  orbBottom: {
+    position: 'absolute',
+    bottom: LAYOUT.orbBottomOffset,
+    left: -0.2 * LAYOUT.orbBottomSize,
+    width: LAYOUT.orbBottomSize,
+    height: LAYOUT.orbBottomSize,
+    borderRadius: LAYOUT.orbBottomSize / 2,
+    backgroundColor: COLORS.orbGold,
+    transform: [{ rotate: '-40deg' }],
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollView: {
+    flexGrow: 1,
+  },
+  content: {
+    flex: 1,
+    padding: LAYOUT.padding,
+  },
+  headerContainer: {
+    marginTop: LAYOUT.headerMarginTop,
+    marginBottom: 48,
+    alignItems: 'center',
+  }
+});

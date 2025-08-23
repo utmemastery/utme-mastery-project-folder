@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2020",
+    "types": ["node", "express", "multer"],   // 👈 add express + multer
     "module": "commonjs",
+    "moduleResolution": "node",
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -10,6 +12,6 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "types"],   // 👈 also include your custom types folder if you create one
   "exclude": ["node_modules", "dist"]
 }

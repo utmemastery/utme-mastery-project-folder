@@ -1,0 +1,115 @@
+{
+  "subjectId": 1,
+  "topicId": 15,
+  "subtopicId": 25,
+  "passage": {
+    "text": "In algebraic mathematics, quadratic equations form the foundation of many advanced concepts...",
+    "type": "INFORMATIONAL",
+    "discipline": "Mathematics"
+  },
+  "questions": [
+    {
+      "text": "Solve the quadratic equation: x² - 5x + 6 = 0",
+      "difficulty": "MEDIUM",
+      "explanation": "Factor the equation: x² - 5x + 6 = (x - 2)(x - 3) = 0. Therefore, x = 2 or x = 3.",
+      "cognitiveLevel": "APPLY",
+      "tags": ["factoring", "algebra", "quadratic"],
+      "aiDifficultyScore": 0.65,
+      "isDiagnostic": false,
+      "options": [
+        {
+          "text": "x = 2, x = 3",
+          "isCorrect": true
+        },
+        {
+          "text": "x = 1, x = 6",
+          "isCorrect": false
+        },
+        {
+          "text": "x = -2, x = -3",
+          "isCorrect": false
+        },
+        {
+          "text": "x = 0, x = 5",
+          "isCorrect": false
+        }
+      ]
+    },
+    {
+      "text": "Which of the following is a quadratic equation?",
+      "difficulty": "EASY",
+      "explanation": "A quadratic equation is an equation of the form ax² + bx + c = 0, where a ≠ 0.",
+      "cognitiveLevel": "REMEMBER",
+      "tags": ["identification", "definition"],
+      "options": [
+        {
+          "text": "3x + 5 = 0",
+          "isCorrect": false
+        },
+        {
+          "text": "x² + 2x - 1 = 0",
+          "isCorrect": true
+        },
+        {
+          "text": "x³ + x = 0",
+          "isCorrect": false
+        },
+        {
+          "text": "5x = 10",
+          "isCorrect": false
+        }
+      ]
+    },
+    {
+      "text": "Find the discriminant of the quadratic equation 2x² - 3x + 1 = 0",
+      "difficulty": "MEDIUM",
+      "explanation": "The discriminant Δ = b² - 4ac. Here, a = 2, b = -3, c = 1. So Δ = (-3)² - 4(2)(1) = 9 - 8 = 1.",
+      "cognitiveLevel": "APPLY",
+      "tags": ["discriminant", "formula"],
+      "options": [
+        {
+          "text": "1",
+          "isCorrect": true
+        },
+        {
+          "text": "-1",
+          "isCorrect": false
+        },
+        {
+          "text": "7",
+          "isCorrect": false
+        },
+        {
+          "text": "17",
+          "isCorrect": false
+        }
+      ]
+    },
+    {
+      "text": "A projectile is thrown upward with initial velocity 30 m/s. The height h (in meters) after t seconds is given by h = 30t - 5t². When does the projectile reach its maximum height?",
+      "difficulty": "HARD",
+      "explanation": "To find maximum height, we need to find when dh/dt = 0. dh/dt = 30 - 10t = 0, so t = 3 seconds.",
+      "cognitiveLevel": "ANALYZE",
+      "tags": ["application", "physics", "calculus", "real-world"],
+      "isDiagnostic": true,
+      "options": [
+        {
+          "text": "2 seconds",
+          "isCorrect": false
+        },
+        {
+          "text": "3 seconds",
+          "isCorrect": true
+        },
+        {
+          "text": "5 seconds",
+          "isCorrect": false
+        },
+        {
+          "text": "6 seconds",
+          "isCorrect": false
+        }
+      ]
+    }
+  ]
+}

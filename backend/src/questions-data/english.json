@@ -1,0 +1,61 @@
+{
+  "subjectId": 2,
+  "topicId": 48,
+  "passage": {
+    "text": "The development of artificial intelligence has revolutionized many sectors of human endeavor. From healthcare to transportation, AI systems are increasingly being deployed to solve complex problems that were once the exclusive domain of human intelligence. However, this technological advancement comes with both opportunities and challenges. While AI can process vast amounts of data and identify patterns beyond human capability, questions about job displacement, privacy, and ethical decision-making continue to spark debate among experts and policymakers alike.",
+    "type": "UNDERSTAND",
+    "discipline": "Technology"
+  },
+  "questions": [
+    {
+      "text": "According to the passage, artificial intelligence is being used to:",
+      "difficulty": "EASY",
+      "explanation": "The passage states that 'AI systems are increasingly being deployed to solve complex problems'.",
+      "cognitiveLevel": "UNDERSTAND",
+      "tags": ["comprehension", "literal"],
+      "options": [
+        {
+          "text": "Replace human workers entirely",
+          "isCorrect": false
+        },
+        {
+          "text": "Solve complex problems in various sectors",
+          "isCorrect": true
+        },
+        {
+          "text": "Create more jobs for humans",
+          "isCorrect": false
+        },
+        {
+          "text": "Eliminate the need for human intelligence",
+          "isCorrect": false
+        }
+      ]
+    },
+    {
+      "text": "The word 'deployed' as used in the passage means:",
+      "difficulty": "MEDIUM",
+      "explanation": "In this context, 'deployed' means to use or implement systematically.",
+      "cognitiveLevel": "ANALYZE",
+      "tags": ["vocabulary", "context"],
+      "options": [
+        {
+          "text": "Removed",
+          "isCorrect": false
+        },
+        {
+          "text": "Used or implemented",
+          "isCorrect": true
+        },
+        {
+          "text": "Destroyed",
+          "isCorrect": false
+        },
+        {
+          "text": "Created",
+          "isCorrect": false
+        }
+      ]
+    }
+  ]
+}

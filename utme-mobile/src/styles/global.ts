@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { Dimensions } from 'react-native';
 import { COLORS, SIZES, LAYOUT } from '../constants';
 
 export const globalStyles = StyleSheet.create({
@@ -57,7 +58,7 @@ export const globalStyles = StyleSheet.create({
   sectionHeader: {
     fontSize: SIZES.title,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: COLORS.textPrimary,
     marginBottom: 12,
   },
   text: {
@@ -79,5 +80,31 @@ export const globalStyles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: COLORS.primary,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: COLORS.success,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: COLORS.white,
+    fontSize: SIZES.smallText,
+    fontWeight: '600',
+  },
+  topicMapNode: {
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...LAYOUT.cardShadow,
+  },
+  topicMapConnector: {
+    borderWidth: 1,
+    borderColor: COLORS.textSecondary,
+    borderStyle: 'dashed',
   },
 });

@@ -1,8 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMockExamStore, MockExam, RecentScore } from '../../stores/mockExamStore';
 import { useAuthStore } from '../../stores/authStore';
+import { SubjectMockCard } from '../../components/ui/SubjectMockCard';
+import { MockResultCard } from '../../components/ui/MockResultCard';
+import { globalStyles } from '../../styles/global';
+import { COLORS, LAYOUT, SIZES } from '../../constants';
+import { Button } from '../../components/ui/Button';
 
 interface MockExamHomeScreenProps {
   navigation: any;
@@ -94,106 +99,60 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
     ? Math.round(200 + (averageScore / 100) * 200)
     : null;
 
-  if (isLoading) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 8 }}>
-            Loading mock exams...
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (error) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Text style={{ fontSize: 16, color: '#EF4444', textAlign: 'center' }}>
-            {error}
-          </Text>
-          <TouchableOpacity
-            onPress={() => fetchMockExams()}
-            style={{
-              backgroundColor: '#3B82F6',
-              borderRadius: 8,
-              padding: 12,
-              marginTop: 16
-            }}
-          >
-            <Text style={{ color: 'white', fontWeight: '500' }}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
+            <View style={styles.container}>
+              <View style={styles.orbTop} />
+              <View style={styles.orbBottom} />
+              <SafeAreaView style={styles.safeArea}>
       <ScrollView style={{ flex: 1 }}>
-        <View style={{ padding: 24 }}>
+        <View style={{ padding: LAYOUT.padding }}>
           {/* Header */}
           <View style={{ marginBottom: 32 }}>
-            <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
+            <Text style={[globalStyles.sectionHeader, { marginBottom: 8 }]}>
               Mock Exams
             </Text>
-            <Text style={{ fontSize: 16, color: '#6B7280' }}>
+            <Text style={globalStyles.text}>
               Practice under real exam conditions
             </Text>
           </View>
 
           {/* Performance Overview */}
-          <View style={{ 
-            backgroundColor: 'white', 
-            borderRadius: 16, 
-            padding: 20,
-            marginBottom: 24,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 3,
-            elevation: 2
-          }}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#1F2937', marginBottom: 16 }}>
+          <View style={[globalStyles.cardContainer, { marginBottom: 24 }]}>
+            <Text style={[globalStyles.sectionHeader, { fontSize: SIZES.mediumText, marginBottom: 16 }]}>
               Your Performance
             </Text>
             
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
               <View style={{ flex: 1, alignItems: 'center' }}>
-                <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#3B82F6', marginBottom: 4 }}>
+                <Text style={[globalStyles.sectionHeader, { fontSize: SIZES.xLargeText, color: COLORS.primary, marginBottom: 4 }]}>
                   {projectedUTMEScore ?? 'N/A'}
                 </Text>
-                <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
+                <Text style={[globalStyles.subText, { textAlign: 'center' }]}>
                   Projected UTME Score
                 </Text>
               </View>
               
-              <View style={{ width: 1, height: 60, backgroundColor: '#E5E7EB', marginHorizontal: 20 }} />
+              <View style={{ width: 1, height: 60, backgroundColor: COLORS.progressBackground, marginHorizontal: 20 }} />
               
               <View style={{ flex: 1, alignItems: 'center' }}>
-                <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#10B981', marginBottom: 4 }}>
+                <Text style={[globalStyles.sectionHeader, { fontSize: SIZES.xLargeText, color: COLORS.success, marginBottom: 4 }]}>
                   {averageScore}%{recentScores?.length === 0 && ' (No scores yet)'}
                 </Text>
-                <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
+                <Text style={[globalStyles.subText, { textAlign: 'center' }]}>
                   Average Score
                 </Text>
               </View>
             </View>
 
             {user?.goalScore && projectedUTMEScore !== null && (
-              <View style={{ 
-                backgroundColor: projectedUTMEScore >= user.goalScore ? '#F0FDF4' : '#FEF3C7',
-                padding: 12,
-                borderRadius: 8,
+              <View style={[globalStyles.cardContainer, {
+                backgroundColor: projectedUTMEScore >= user.goalScore ? COLORS.success + '20' : COLORS.warning + '20',
                 borderLeftWidth: 4,
-                borderLeftColor: projectedUTMEScore >= user.goalScore ? '#10B981' : '#F59E0B'
-              }}>
-                <Text style={{ 
-                  fontSize: 14, 
-                  color: projectedUTMEScore >= user.goalScore ? '#065F46' : '#92400E'
-                }}>
+                borderLeftColor: projectedUTMEScore >= user.goalScore ? COLORS.success : COLORS.warning
+              }]}>
+                <Text style={[globalStyles.text, { 
+                  color: projectedUTMEScore >= user.goalScore ? COLORS.success : COLORS.warning
+                }]}>
                   {projectedUTMEScore >= user.goalScore 
                     ? `🎉 You're on track! You've reached your goal of ${user.goalScore}`
                     : `🎯 ${user.goalScore - projectedUTMEScore} points to your goal of ${user.goalScore}`
@@ -202,8 +161,8 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
               </View>
             )}
           </View>
-
-          {/* Quick Start */}
+          
+            {/* Quick Start */}
           <View style={{ marginBottom: 24 }}>
             <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 16 }}>
               Quick Start
@@ -329,7 +288,7 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
           {/* Subject-Specific Mocks */}
           {user?.selectedSubjects && user.selectedSubjects.length > 0 && (
             <View style={{ marginBottom: 24 }}>
-              <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 16 }}>
+              <Text style={[globalStyles.sectionHeader, { fontSize: SIZES.mediumText, marginBottom: 16 }]}>
                 Subject Practice
               </Text>
               
@@ -351,11 +310,11 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
           {recentScores && recentScores.length > 0 && (
             <View style={{ marginBottom: 32 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151' }}>
+                <Text style={[globalStyles.sectionHeader, { fontSize: SIZES.mediumText }]}>
                   Recent Results
                 </Text>
                 <TouchableOpacity onPress={() => navigation.navigate('MockExamHistory')}>
-                  <Text style={{ fontSize: 14, color: '#3B82F6', fontWeight: '500' }}>
+                  <Text style={[globalStyles.text, { color: COLORS.primary, fontWeight: '500' }]}>
                     View All →
                   </Text>
                 </TouchableOpacity>
@@ -371,143 +330,50 @@ export const MockExamHomeScreen: React.FC<MockExamHomeScreenProps> = ({ navigati
         </View>
       </ScrollView>
     </SafeAreaView>
+            </View>
   );
 };
 
-// Subject Mock Card Component
-interface SubjectMockCardProps {
-  subject: string;
-  onPress: () => void;
-}
 
-const SubjectMockCard: React.FC<SubjectMockCardProps> = ({ subject, onPress }) => {
-  const getSubjectIcon = (subj: string) => {
-    const icons: Record<string, string> = {
-      english: '📚',
-      mathematics: '🔢',
-      physics: '⚛️',
-      chemistry: '🧪',
-      biology: '🧬',
-      geography: '🌍',
-      economics: '💰',
-      government: '🏛️'
-    };
-    return icons[subj.toLowerCase()] || '📋';
-  };
 
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={{
-        backgroundColor: 'white',
-        borderRadius: 16,
-        padding: 16,
-        width: 140,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 2
-      }}
-    >
-      <Text style={{ fontSize: 32, marginBottom: 8 }}>
-        {getSubjectIcon(subject)}
-      </Text>
-      <Text style={{ 
-        fontSize: 14, 
-        fontWeight: '600', 
-        color: '#1F2937',
-        textAlign: 'center',
-        marginBottom: 8,
-        textTransform: 'capitalize'
-      }}>
-        {subject}
-      </Text>
-      <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center', marginBottom: 8 }}>
-        60 questions • 1 hour
-      </Text>
-      <View style={{
-        backgroundColor: '#EFF6FF',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12
-      }}>
-        <Text style={{ fontSize: 10, color: '#3B82F6', fontWeight: '500' }}>
-          START MOCK
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-};
-
-// Mock Result Card Component
-interface MockResultCardProps {
-  result: RecentScore;
-}
-
-const MockResultCard: React.FC<MockResultCardProps> = ({ result }) => {
-  const getScoreColor = (percentage: number) => {
-    if (percentage >= 80) return '#10B981';
-    if (percentage >= 60) return '#3B82F6';
-    if (percentage >= 40) return '#F59E0B';
-    return '#EF4444';
-  };
-
-  return (
-    <View style={{
-      backgroundColor: 'white',
-      borderRadius: 12,
-      padding: 16,
-      flexDirection: 'row',
-      alignItems: 'center'
-    }}>
-      <View style={{
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: `${getScoreColor(result.percentage)}20`,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12
-      }}>
-        <Text style={{ 
-          fontSize: 16, 
-          fontWeight: 'bold', 
-          color: getScoreColor(result.percentage) 
-        }}>
-          {result.percentage}%
-        </Text>
-      </View>
-      
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 14, fontWeight: '500', color: '#1F2937', marginBottom: 2 }}>
-          {result.examType === 'FULL_UTME' ? 'Full UTME Mock' : `${result.subject} Mock`}
-        </Text>
-        <Text style={{ fontSize: 12, color: '#6B7280' }}>
-          {result.correctAnswers}/{result.questionCount} correct • {formatRelativeTime(result.completedAt)}
-        </Text>
-      </View>
-      
-      <Text style={{ color: '#6B7280', fontSize: 14 }}>→</Text>
-    </View>
-  );
-};
-
-// Helper function
-const formatRelativeTime = (date: string | Date) => {
-  try {
-    const now = new Date();
-    const past = new Date(date);
-    const diffInHours = (now.getTime() - past.getTime()) / (1000 * 60 * 60);
-    
-    if (isNaN(diffInHours)) return 'Unknown time';
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours < 24) return `${Math.floor(diffInHours)}h ago`;
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    return `${Math.floor(diffInDays / 7)}w ago`;
-  } catch {
-    return 'Unknown time';
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  orbTop: {
+    position: 'absolute',
+    top: LAYOUT.orbTopOffset,
+    right: -0.25 * LAYOUT.orbTopSize,
+    width: LAYOUT.orbTopSize,
+    height: LAYOUT.orbTopSize,
+    borderRadius: LAYOUT.orbTopSize / 2,
+    backgroundColor: COLORS.orbBlue,
+    transform: [{ rotate: '20deg' }],
+  },
+  orbBottom: {
+    position: 'absolute',
+    bottom: LAYOUT.orbBottomOffset,
+    left: -0.2 * LAYOUT.orbBottomSize,
+    width: LAYOUT.orbBottomSize,
+    height: LAYOUT.orbBottomSize,
+    borderRadius: LAYOUT.orbBottomSize / 2,
+    backgroundColor: COLORS.orbGold,
+    transform: [{ rotate: '-40deg' }],
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollView: {
+    flexGrow: 1,
+  },
+  content: {
+    flex: 1,
+    padding: LAYOUT.padding,
+  },
+  headerContainer: {
+    marginTop: LAYOUT.headerMarginTop,
+    marginBottom: 48,
+    alignItems: 'center',
   }
-};
+});

@@ -1,0 +1,31 @@
+{
+  "subjectId": 3,
+  "topicId": 72,
+  "questions": [
+    {
+      "text": "A pendulum oscillates with simple harmonic motion. If the length of the pendulum is increased by a factor of 4, the period becomes:",
+      "difficulty": "HARD",
+      "explanation": "The period of a simple pendulum is T = 2π√(L/g). If L increases by factor of 4, then T increases by factor of √4 = 2.",
+      "cognitiveLevel": "APPLICATION",
+      "tags": ["pendulum", "period", "formula"],
+      "options": [
+        {
+          "text": "2 times the original period",
+          "isCorrect": true
+        },
+        {
+          "text": "4 times the original period",
+          "isCorrect": false
+        },
+        {
+          "text": "Half the original period",
+          "isCorrect": false
+        },
+        {
+          "text": "The same as the original period",
+          "isCorrect": false
+        }
+      ]
+    }
+  ]
+}

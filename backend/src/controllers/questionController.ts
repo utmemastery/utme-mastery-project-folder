@@ -24,15 +24,15 @@ export class QuestionController {
       };
 
       const cognitiveLevelMap: Record<
-        'recall' | 'comprehension' | 'application' | 'analysis' | 'synthesis' | 'evaluation',
+        'remember' | 'understand' | 'apply' | 'analyze' | 'evaluate' | 'create',
         CognitiveLevel
       > = {
-        recall: CognitiveLevel.RECALL,
-        comprehension: CognitiveLevel.COMPREHENSION,
-        application: CognitiveLevel.APPLICATION,
-        analysis: CognitiveLevel.ANALYSIS,
-        synthesis: CognitiveLevel.SYNTHESIS,
-        evaluation: CognitiveLevel.EVALUATION
+        remember: CognitiveLevel.REMEMBER,
+        understand: CognitiveLevel.UNDERSTAND,
+        apply: CognitiveLevel.APPLY,
+        analyze: CognitiveLevel.ANALYZE,
+        evaluate: CognitiveLevel.EVALUATE,
+        create: CognitiveLevel.CREATE
       };
 
       // Narrow types to strings before validation

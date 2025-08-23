@@ -5,6 +5,7 @@ import { PracticeHomeScreen } from '../screens/practice/PracticeHomeScreen';
 import { PracticeSessionScreen } from '../screens/practice/PracticeSessionScreen';
 import { PracticeResultsScreen } from '../screens/practice/PracticeResultsScreen';
 
+
 const Stack = createStackNavigator();
 
 export const PracticeNavigator = () => {

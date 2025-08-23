@@ -1,9 +1,10 @@
-// mobile/src/screens/flashcards/FlashcardHomeScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFlashcardStore } from '../../stores/flashcardStore';
 import { Button } from '../../components/ui/Button';
+import { globalStyles } from '../../styles/global';
+import { COLORS, LAYOUT, SIZES } from '../../constants';
 
 interface FlashcardHomeScreenProps {
   navigation: any;
@@ -47,37 +48,30 @@ export const FlashcardHomeScreen: React.FC<FlashcardHomeScreenProps> = ({ naviga
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
+            <View style={styles.container}>
+              <View style={styles.orbTop} />
+              <View style={styles.orbBottom} />
+              <SafeAreaView style={styles.safeArea}>
       <ScrollView 
         style={{ flex: 1 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
-        <View style={{ padding: 24 }}>
+        <View style={{ padding: LAYOUT.padding }}>
           {/* Header */}
           <View style={{ marginBottom: 32 }}>
-            <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
+            <Text style={[globalStyles.sectionHeader, { marginBottom: 8 }]}>
               Flashcards
             </Text>
-            <Text style={{ fontSize: 16, color: '#6B7280' }}>
+            <Text style={globalStyles.text}>
               Master concepts with spaced repetition
             </Text>
           </View>
 
           {/* Review Stats */}
-          <View style={{ 
-            backgroundColor: 'white', 
-            borderRadius: 16, 
-            padding: 20,
-            marginBottom: 24,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 3,
-            elevation: 2
-          }}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#1F2937', marginBottom: 16 }}>
+          <View style={[globalStyles.cardContainer, { marginBottom: 24 }]}>
+            <Text style={[globalStyles.sectionHeader, { fontSize: SIZES.mediumText, marginBottom: 16 }]}>
               Review Status
             </Text>
             
@@ -85,25 +79,25 @@ export const FlashcardHomeScreen: React.FC<FlashcardHomeScreenProps> = ({ naviga
               <ReviewStatCard
                 title="Due Today"
                 value={flashcards?.length?.toString() || '0'}
-                color="#EF4444"
+                color={COLORS.error}
                 icon="⏰"
               />
               <ReviewStatCard
                 title="New Cards"
                 value={reviewStats?.newCards?.toString() || '0'}
-                color="#3B82F6"
+                color={COLORS.primary}
                 icon="✨"
               />
               <ReviewStatCard
                 title="Mastered"
                 value={reviewStats?.masteredCards?.toString() || '0'}
-                color="#10B981"
+                color={COLORS.success}
                 icon="✅"
               />
               <ReviewStatCard
                 title="Learning"
                 value={reviewStats?.learningCards?.toString() || '0'}
-                color="#F59E0B"
+                color={COLORS.warning}
                 icon="📚"
               />
             </View>
@@ -111,7 +105,7 @@ export const FlashcardHomeScreen: React.FC<FlashcardHomeScreenProps> = ({ naviga
 
           {/* Quick Actions */}
           <View style={{ marginBottom: 24 }}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 16 }}>
+            <Text style={[globalStyles.sectionHeader, { fontSize: SIZES.mediumText, marginBottom: 16 }]}>
               Quick Actions
             </Text>
             
@@ -119,65 +113,52 @@ export const FlashcardHomeScreen: React.FC<FlashcardHomeScreenProps> = ({ naviga
               <TouchableOpacity
                 onPress={startReviewSession}
                 disabled={flashcards.length === 0}
-                style={{
-                  backgroundColor: flashcards.length > 0 ? '#3B82F6' : '#D1D5DB',
-                  borderRadius: 12,
-                  padding: 16,
+                style={[globalStyles.button, {
                   flexDirection: 'row',
                   alignItems: 'center',
-                  justifyContent: 'center'
-                }}
+                  justifyContent: 'center',
+                  backgroundColor: flashcards.length > 0 ? COLORS.primary : COLORS.disabled,
+                  padding: SIZES.cardPadding
+                }]}
               >
-                <Text style={{ fontSize: 20, marginRight: 12 }}>🎯</Text>
+                <Text style={{ fontSize: SIZES.icon, marginRight: 12 }}>🎯</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ 
-                    fontSize: 16, 
-                    fontWeight: '600', 
-                    color: 'white',
-                    marginBottom: 2
-                  }}>
+                  <Text style={[globalStyles.buttonText, { marginBottom: 2 }]}>
                     Start Review Session
                   </Text>
-                  <Text style={{ fontSize: 14, color: '#BFDBFE' }}>
-                    {flashcards.length} cards ready for review
+                  <Text style={[globalStyles.subText, { color: COLORS.textSecondary }]}>
+                    {flashcards.length || 0} cards ready for review
                   </Text>
                 </View>
-                <Text style={{ color: '#BFDBFE', fontSize: 18 }}>→</Text>
               </TouchableOpacity>
 
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <TouchableOpacity
                   onPress={() => navigation.navigate('CreateFlashcard')}
-                  style={{
+                  style={[globalStyles.cardContainer, {
                     flex: 1,
-                    backgroundColor: 'white',
-                    borderRadius: 12,
-                    padding: 16,
                     alignItems: 'center',
                     borderWidth: 2,
-                    borderColor: '#E5E7EB'
-                  }}
+                    borderColor: COLORS.progressBackground
+                  }]}
                 >
-                  <Text style={{ fontSize: 24, marginBottom: 8 }}>➕</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151' }}>
+                  <Text style={{ fontSize: SIZES.icon, marginBottom: 8 }}>➕</Text>
+                  <Text style={[globalStyles.buttonText, { color: COLORS.textPrimary }]}>
                     Create Card
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={() => navigation.navigate('FlashcardLibrary')}
-                  style={{
+                  style={[globalStyles.cardContainer, {
                     flex: 1,
-                    backgroundColor: 'white',
-                    borderRadius: 12,
-                    padding: 16,
                     alignItems: 'center',
                     borderWidth: 2,
-                    borderColor: '#E5E7EB'
-                  }}
+                    borderColor: COLORS.progressBackground
+                  }]}
                 >
-                  <Text style={{ fontSize: 24, marginBottom: 8 }}>📚</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151' }}>
+                  <Text style={{ fontSize: SIZES.icon, marginBottom: 8 }}>📚</Text>
+                  <Text style={[globalStyles.buttonText, { color: COLORS.textPrimary }]}>
                     Browse Library
                   </Text>
                 </TouchableOpacity>
@@ -188,7 +169,7 @@ export const FlashcardHomeScreen: React.FC<FlashcardHomeScreenProps> = ({ naviga
           {/* Recent Activity */}
           {reviewStats?.recentSessions && (
             <View style={{ marginBottom: 24 }}>
-              <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 16 }}>
+              <Text style={[globalStyles.sectionHeader, { fontSize: SIZES.mediumText, marginBottom: 16 }]}>
                 Recent Sessions
               </Text>
               
@@ -196,19 +177,16 @@ export const FlashcardHomeScreen: React.FC<FlashcardHomeScreenProps> = ({ naviga
                 {reviewStats.recentSessions.slice(0, 3).map((session: any, index: number) => (
                   <View
                     key={index}
-                    style={{
-                      backgroundColor: 'white',
-                      borderRadius: 12,
-                      padding: 16,
+                    style={[globalStyles.cardContainer, {
                       flexDirection: 'row',
                       alignItems: 'center'
-                    }}
+                    }]}
                   >
                     <View style={{
                       width: 40,
                       height: 40,
                       borderRadius: 20,
-                      backgroundColor: '#F3F4F6',
+                      backgroundColor: COLORS.progressBackground,
                       justifyContent: 'center',
                       alignItems: 'center',
                       marginRight: 12
@@ -216,10 +194,10 @@ export const FlashcardHomeScreen: React.FC<FlashcardHomeScreenProps> = ({ naviga
                       <Text style={{ fontSize: 18 }}>📖</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#1F2937' }}>
+                      <Text style={[globalStyles.text, { fontWeight: '500' }]}>
                         {session.cardsReviewed} cards reviewed
                       </Text>
-                      <Text style={{ fontSize: 12, color: '#6B7280' }}>
+                      <Text style={globalStyles.subText}>
                         {session.accuracy}% accuracy • {formatRelativeTime(session.date)}
                       </Text>
                     </View>
@@ -231,6 +209,7 @@ export const FlashcardHomeScreen: React.FC<FlashcardHomeScreenProps> = ({ naviga
         </View>
       </ScrollView>
     </SafeAreaView>
+            </View>
   );
 };
 
@@ -268,11 +247,54 @@ const ReviewStatCard: React.FC<ReviewStatCardProps> = ({ title, value, color, ic
     }}>
       <Text style={{ fontSize: 20 }}>{icon}</Text>
     </View>
-    <Text style={{ fontSize: 20, fontWeight: 'bold', color, marginBottom: 2 }}>
+    <Text style={[globalStyles.sectionHeader, { color, fontSize: SIZES.largeText, marginBottom: 2 }]}>
       {value}
     </Text>
-    <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
+    <Text style={[globalStyles.subText, { textAlign: 'center' }]}>
       {title}
     </Text>
   </View>
 );
+
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  orbTop: {
+    position: 'absolute',
+    top: LAYOUT.orbTopOffset,
+    right: -0.25 * LAYOUT.orbTopSize,
+    width: LAYOUT.orbTopSize,
+    height: LAYOUT.orbTopSize,
+    borderRadius: LAYOUT.orbTopSize / 2,
+    backgroundColor: COLORS.orbBlue,
+    transform: [{ rotate: '20deg' }],
+  },
+  orbBottom: {
+    position: 'absolute',
+    bottom: LAYOUT.orbBottomOffset,
+    left: -0.2 * LAYOUT.orbBottomSize,
+    width: LAYOUT.orbBottomSize,
+    height: LAYOUT.orbBottomSize,
+    borderRadius: LAYOUT.orbBottomSize / 2,
+    backgroundColor: COLORS.orbGold,
+    transform: [{ rotate: '-40deg' }],
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollView: {
+    flexGrow: 1,
+  },
+  content: {
+    flex: 1,
+    padding: LAYOUT.padding,
+  },
+  headerContainer: {
+    marginTop: LAYOUT.headerMarginTop,
+    marginBottom: 48,
+    alignItems: 'center',
+  }
+});
