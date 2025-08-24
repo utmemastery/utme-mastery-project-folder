@@ -1,11 +1,10 @@
 import { Request, Response } from 'express';
-import { AuthRequest } from '../middleware/auth'; 
 import { MockExamService } from '../services/mockExamService';
 import { QuestionService } from '../services/questionService';
 import { ExamType } from '@prisma/client';
 
 export class MockExamController {
-  static async getMockExams(req: AuthRequest, res: Response) {
+  static async getMockExams(req: Request, res: Response) {
     try {
       const userId = req.user!.id; // Changed from userId
       const mockExams = await MockExamService.getAvailableMockExams(userId);
@@ -23,7 +22,7 @@ export class MockExamController {
     }
   }
 
-  static async getRecentScores(req: AuthRequest, res: Response) {
+  static async getRecentScores(req: Request, res: Response) {
     try {
       const userId = req.user!.id; // Changed from userId
       const scores = await MockExamService.getRecentScores(userId, 10);
@@ -41,7 +40,7 @@ export class MockExamController {
     }
   }
 
-  static async startMockExam(req: AuthRequest, res: Response) {
+  static async startMockExam(req: Request, res: Response) {
     try {
       const userId = req.user!.id; // Changed from userId
       const { type, subjects, timeLimit, questionCount, title, description } = req.body;
@@ -108,7 +107,7 @@ export class MockExamController {
     }
   }
 
-  static async submitMockExam(req: AuthRequest, res: Response) {
+  static async submitMockExam(req: Request, res: Response) {
     try {
       const userId = req.user!.id; // Changed from userId
       const { examId, answers } = req.body;
@@ -133,7 +132,7 @@ export class MockExamController {
     }
   }
 
-  static async getMockExamResults(req: AuthRequest, res: Response) {
+  static async getMockExamResults(req: Request, res: Response) {
     try {
       const userId = req.user!.id; // Changed from userId
       const { examId } = req.params;
@@ -160,7 +159,7 @@ export class MockExamController {
     }
   }
 
-  static async getMockExamHistory(req: AuthRequest, res: Response) {
+  static async getMockExamHistory(req: Request, res: Response) {
     try {
       const userId = req.user!.id; // Changed from userId
       const { page = 1, limit = 20 } = req.query;
@@ -190,7 +189,7 @@ export class MockExamController {
     }
   }
 
-  static async resumeMockExam(req: AuthRequest, res: Response) {
+  static async resumeMockExam(req: Request, res: Response) {
     try {
       const userId = req.user!.id; // Changed from userId
       const { examId } = req.params;

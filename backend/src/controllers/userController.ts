@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { AuthRequest } from '../middleware/auth';
 import { AnalyticsService } from '../services/analyticsService';
 import { StudyPlanService } from '../services/studyPlanService';
 import { StudyTaskStatus } from '@prisma/client';
@@ -21,9 +20,13 @@ const COURSE_SUBJECT_REQUIREMENTS = {
 };
 
 export class UserController {
-  static async getProfile(req: AuthRequest, res: Response) {
+  
+  static async getProfile(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       // Validate userId
       if (!Number.isInteger(userId) || userId <= 0) {
@@ -62,9 +65,12 @@ export class UserController {
     }
   }
 
-static async updateProfile(req: AuthRequest, res: Response) {
+static async updateProfile(req: Request, res: Response) {
   try {
-    const userId = req.user!.id;
+            if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+    const userId = req.user.id;
 
     let {
       firstName,
@@ -212,9 +218,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
 
 
 
-  static async uploadProfileImage(req: AuthRequest, res: Response) {
+  static async uploadProfileImage(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
       const file = req.file;
 
       if (!Number.isInteger(userId) || userId <= 0) {
@@ -240,9 +249,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async updateSubjects(req: AuthRequest, res: Response) {
+  static async updateSubjects(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
       const { selectedSubjects } = req.body;
 
       if (!Number.isInteger(userId) || userId <= 0) {
@@ -274,9 +286,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async updatePreferences(req: AuthRequest, res: Response) {
+  static async updatePreferences(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
       const { preferredStudyTime, studyReminders } = req.body;
 
       if (!Number.isInteger(userId) || userId <= 0) {
@@ -303,9 +318,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async deleteAccount(req: AuthRequest, res: Response) {
+  static async deleteAccount(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       if (!Number.isInteger(userId) || userId <= 0) {
         return res.status(400).json({ error: 'Invalid user ID' });
@@ -318,9 +336,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async exportData(req: AuthRequest, res: Response) {
+  static async exportData(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       if (!Number.isInteger(userId) || userId <= 0) {
         return res.status(400).json({ error: 'Invalid user ID' });
@@ -347,9 +368,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async completeOnboarding(req: AuthRequest, res: Response) {
+  static async completeOnboarding(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
       const { selectedSubjects, aspiringCourse, goalScore, learningStyle } = req.body;
 
       // Validate userId
@@ -419,9 +443,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async getDashboardData(req: AuthRequest, res: Response) {
+  static async getDashboardData(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       if (!Number.isInteger(userId) || userId <= 0) {
         return res.status(400).json({ error: 'Invalid user ID' });
@@ -434,9 +461,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async getAnalytics(req: AuthRequest, res: Response) {
+  static async getAnalytics(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       if (!Number.isInteger(userId) || userId <= 0) {
         return res.status(400).json({ error: 'Invalid user ID' });
@@ -449,9 +479,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async getWeakTopics(req: AuthRequest, res: Response) {
+  static async getWeakTopics(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       if (!Number.isInteger(userId) || userId <= 0) {
         return res.status(400).json({ error: 'Invalid user ID' });
@@ -464,9 +497,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async getStudyPlan(req: AuthRequest, res: Response) {
+  static async getStudyPlan(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       if (!Number.isInteger(userId) || userId <= 0) {
         return res.status(400).json({ error: 'Invalid user ID' });
@@ -479,9 +515,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async updateStudyPlan(req: AuthRequest, res: Response) {
+  static async updateStudyPlan(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
       const { taskId, status } = req.body;
 
       if (!Number.isInteger(userId) || userId <= 0) {
@@ -505,9 +544,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async regenerateStudyPlan(req: AuthRequest, res: Response) {
+  static async regenerateStudyPlan(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       if (!Number.isInteger(userId) || userId <= 0) {
         return res.status(400).json({ error: 'Invalid user ID' });
@@ -520,9 +562,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async getProgress(req: AuthRequest, res: Response) {
+  static async getProgress(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       if (!Number.isInteger(userId) || userId <= 0) {
         return res.status(400).json({ error: 'Invalid user ID' });
@@ -543,9 +588,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async getSubjectProgress(req: AuthRequest, res: Response) {
+  static async getSubjectProgress(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
       const { subject } = req.params;
 
       if (!Number.isInteger(userId) || userId <= 0) {
@@ -574,9 +622,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async updateGoal(req: AuthRequest, res: Response) {
+  static async updateGoal(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
       const { goalScore } = req.body;
 
       if (!Number.isInteger(userId) || userId <= 0) {
@@ -599,9 +650,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async getGoalProgress(req: AuthRequest, res: Response) {
+  static async getGoalProgress(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       if (!Number.isInteger(userId) || userId <= 0) {
         return res.status(400).json({ error: 'Invalid user ID' });
@@ -629,9 +683,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async getAchievements(req: AuthRequest, res: Response) {
+  static async getAchievements(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       if (!Number.isInteger(userId) || userId <= 0) {
         return res.status(400).json({ error: 'Invalid user ID' });
@@ -648,9 +705,12 @@ static async updateProfile(req: AuthRequest, res: Response) {
     }
   }
 
-  static async getStreak(req: AuthRequest, res: Response) {
+  static async getStreak(req: Request, res: Response) {
     try {
-      const userId = req.user!.id;
+              if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+            }
+      const userId = req.user.id;
 
       if (!Number.isInteger(userId) || userId <= 0) {
         return res.status(400).json({ error: 'Invalid user ID' });

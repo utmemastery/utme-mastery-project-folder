@@ -61,3 +61,66 @@ export const validateMockExamStart = [
     next();
   }
 ];
+
+
+// ---------------- Practice Session ----------------
+export const validatePracticeSession = [
+  body('topicId')
+    .toInt()
+    .isInt({ min: 1 })
+    .withMessage('Topic ID is required and must be a number'),
+
+  body('difficulty')
+    .optional()
+    .customSanitizer(value => value?.toUpperCase())
+    .isIn(['EASY','MEDIUM','HARD','MIXED'])
+    .withMessage('Difficulty must be one of: EASY, MEDIUM, HARD, MIXED'),
+
+  body('questionCount')
+    .toInt()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Number of questions must be between 1 and 100'),
+
+  (req: Request, res: Response, next: NextFunction) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      });
+    }
+    next();
+  }
+];
+
+
+
+// ---------------- Question Attempt ----------------
+export const validateQuestionAttempt = [
+  body('answer')
+    .notEmpty()
+    .withMessage('Answer is required')
+    .isString()
+    .withMessage('Answer must be a string'),
+  body('timeTaken')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Time taken must be a positive integer (seconds)'),
+  body('confidence')
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Confidence must be between 1 and 5'),
+
+  (req: Request, res: Response, next: NextFunction) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      });
+    }
+    next();
+  }
+];

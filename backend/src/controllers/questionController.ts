@@ -1,10 +1,9 @@
 import { Request, Response } from 'express';
 import { QuestionService } from '../services/questionService';
-import { AuthRequest } from '../middleware/auth';
 import { DifficultyLevel, CognitiveLevel } from '@prisma/client';
 
 export class QuestionController {
-  static async getAdaptiveQuestions(req: AuthRequest, res: Response) {
+  static async getAdaptiveQuestions(req: Request, res: Response) {
     try {
       const userId = req.user!.id;
       const { 
@@ -80,7 +79,7 @@ export class QuestionController {
     }
   }
 
-  static async getDiagnosticQuestions(req: AuthRequest, res: Response) {
+  static async getDiagnosticQuestions(req: Request, res: Response) {
     try {
       const { subjects } = req.body;
       
@@ -101,7 +100,7 @@ export class QuestionController {
     }
   }
 
-  static async getDiagnosticQuestionsForSubject(req: AuthRequest, res: Response) {
+  static async getDiagnosticQuestionsForSubject(req: Request, res: Response) {
     try {
       const { subject } = req.params;
 
@@ -117,7 +116,7 @@ export class QuestionController {
     }
   }
 
-  static async submitAnswer(req: AuthRequest, res: Response) {
+  static async submitAnswer(req: Request, res: Response) {
     try {
       const userId = req.user!.id;
       const { questionId, selectedAnswer, timeSpent, practiceSessionId } = req.body;

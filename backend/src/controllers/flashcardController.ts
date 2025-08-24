@@ -1,9 +1,8 @@
 import { Request, Response } from 'express';
-import { AuthRequest } from '../middleware/auth';
 import { FlashcardService } from '../services/flashcardService';
 
 export class FlashcardController {
-  static async getFlashcardsForReview(req: AuthRequest, res: Response) {
+  static async getFlashcardsForReview(req: Request, res: Response) {
     try {
       const userId = req.user!.id;
       const { limit = 20 } = req.query;
@@ -24,7 +23,7 @@ export class FlashcardController {
     }
   }
 
-  static async submitFlashcardReview(req: AuthRequest, res: Response) {
+  static async submitFlashcardReview(req: Request, res: Response) {
     try {
       const userId = req.user!.id;
       const { flashcardId, response, timeSpent } = req.body;
@@ -63,7 +62,7 @@ export class FlashcardController {
     }
   }
 
-  static async createFlashcard(req: AuthRequest, res: Response) {
+  static async createFlashcard(req: Request, res: Response) {
     try {
       const userId = req.user!.id;
       const cardData = req.body;

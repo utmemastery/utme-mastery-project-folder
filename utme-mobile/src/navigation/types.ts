@@ -59,6 +59,14 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
+export type PracticeStackParamList = {
+  PracticeHome: undefined;
+  PracticeSession: { topicId?: number; sessionId?: string };
+  SubjectSelection: { subjectId: string };
+  PostPracticeAnalysis: { sessionId: string };
+  ReviewMistakes: { sessionId: string };
+};
+
 export type MockExamStackParamList = {
   MockExamHome: undefined;
   MockExamSession: undefined;
